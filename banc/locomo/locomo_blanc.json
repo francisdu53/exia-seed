@@ -1,0 +1,33 @@
+[
+ {"sample_id": "conv-26",
+  "conversation": {"speaker_a": "Ada", "speaker_b": "Bert",
+   "session_1_date_time": "1:56 pm on 8 May, 2023",
+   "session_1": [
+    {"speaker": "Ada", "dia_id": "D1:1", "text": "I went to a pottery class yesterday, it was relaxing."},
+    {"speaker": "Bert", "dia_id": "D1:2", "text": "Nice! I adopted a dog named Pixel last Saturday."},
+    {"speaker": "Ada", "dia_id": "D1:3", "text": "Look at my first bowl.", "img_url": ["x"], "blip_caption": "a photo of a blue ceramic bowl"}],
+   "session_2_date_time": "10:00 am on 20 May, 2023",
+   "session_2": [
+    {"speaker": "Bert", "dia_id": "D2:1", "text": "Pixel learned to sit, it took 3 weeks."},
+    {"speaker": "Ada", "dia_id": "D2:2", "text": "Next week I start a ceramics course that costs 1,200 dollars."}]},
+  "qa": [
+   {"question": "When did Ada go to a pottery class?", "answer": "7 May 2023", "evidence": ["D1:1"], "category": 2},
+   {"question": "What is the name of Bert's dog?", "answer": "Pixel", "evidence": ["D1:2"], "category": 4},
+   {"question": "How much does Ada's ceramics course cost?", "answer": "1,200 dollars", "evidence": ["D2:2"], "category": 4},
+   {"question": "What instrument does Bert play?", "adversarial_answer": "guitar", "evidence": [], "category": 5}]},
+ {"sample_id": "conv-99",
+  "conversation": {"speaker_a": "Chen", "speaker_b": "Dina",
+   "session_1_date_time": "9:15 am on 3 June, 2023",
+   "session_1": [
+    {"speaker": "Chen", "dia_id": "D1:1", "text": "I ran my first marathon in Boston on Sunday."},
+    {"speaker": "Dina", "dia_id": "D1:2", "text": "Congrats! I am moving to Lisbon in July for a new job."}],
+   "session_2_date_time": "6:40 pm on 15 June, 2023",
+   "session_2": [
+    {"speaker": "Chen", "dia_id": "D2:1", "text": "My knee hurts since the marathon, the doctor said rest for two weeks."},
+    {"speaker": "Dina", "dia_id": "D2:2", "text": "I found an apartment near the river in Lisbon."}]},
+  "qa": [
+   {"question": "Where did Chen run a marathon?", "answer": "Boston", "evidence": ["D1:1"], "category": 4},
+   {"question": "Where is Dina moving?", "answer": "Lisbon", "evidence": ["D1:2"], "category": 4},
+   {"question": "Why does Chen need rest?", "answer": "knee pain after the marathon", "evidence": ["D2:1"], "category": 1},
+   {"question": "What is Dina's favorite painting?", "adversarial_answer": "Mona Lisa", "evidence": [], "category": 5}]}
+]
