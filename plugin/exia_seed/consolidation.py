@@ -84,6 +84,12 @@ def _noms_propres(texte: str) -> List[str]:
     return noms
 
 
+def _plat(texte: str) -> str:
+    """Minuscules, trait d'union et apostrophe = espace : « Météo-France » se retrouve dans « météo france ».
+    Faux rejet trouvé chez Nexa le 28/10 : Francis tape le nom sans trait d'union, le modèle l'écrit avec."""
+    return " ".join(re.split(r"[\s\-‐‑–'’]+", (texte or "").lower()))
+
+
 def _racine(mot: str) -> str:
     return mot[:5]
 
@@ -351,7 +357,7 @@ class Consolidateur:
         for n in _nombres(fait, m):
             if n not in nombres_cites:
                 return False, f"nombre absent des sources : {n}"
-        cite_bas = cite.lower()
+        cite_bas = _plat(cite)
         # Le nom de l'utilisateur et celui de l'agent sont implicites dans tout ce qu'ils disent :
         # « demande à Francis de regrouper les visites » ne cite pas « Francis », et c'est normal.
         # Défaut trouvé sur GPT-6 le 22/09 : la contrainte personnelle était rejetée, donc perdue.
@@ -359,7 +365,7 @@ class Consolidateur:
         for nom in _noms_propres(fait):
             if nom.lower() in connus:
                 continue
-            if nom.lower() not in cite_bas:
+            if _plat(nom) not in cite_bas:
                 return False, f"nom propre absent des sources : {nom}"
         # L'utilisateur, l'agent, et les mots qui les désignent sont implicites dans tout ce qui se dit :
         # ils ne comptent ni pour ni contre (D5). Régression trouvée le 27/09 : depuis que R2 retire

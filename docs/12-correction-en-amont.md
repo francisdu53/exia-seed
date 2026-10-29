@@ -270,3 +270,10 @@ s'applique pas à la 0.8.1, qui n'a pas de masques — elle échoue de la même 
 
 **Défaut du banc trouvé en passant (non corrigé)** : `tests/banc.sh` rend le code de sortie de `grep`, pas celui de la
 suite : une suite qui plante sur une exception est annoncée réussie (code 0). Lire les lignes « réussis », pas le code.
+
+**Première preuve réelle — 28/10/2026, 21 h 46.** Francis envoie un vocal (merci pour le rappel, un document d'un proche
+à envoyer à l'assurance) ; Nexa répond en vocal. Dans le brut : `[21:46 francis] "Merci Nexa…"` puis
+`[21:46 nexa] (vocal) Avec plaisir, Francis…` — la réponse prononcée est écrite en clair. Consolidation de 22 h 03 :
+**2 faits** dans la page de ce proche (ce qui s'est passé ; ce qui reste à faire), source = la ligne du vocal ; compteur
+`reponses_vocales` : 2. La boucle vocale est fermée, dans les deux sens.
+

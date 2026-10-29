@@ -52,6 +52,8 @@ conversation ──► raw/ (append-only, hash-chained, secrets masked)
   candidates and adds associated subjects; the facts that *create* a link are offered as leads.
 - **Automatic recall.** On each message, the subjects it touches surface on their own (phase 2), as data, never as
   instructions.
+- **Voice, both ways.** The user's voice messages are transcribed locally into the raw log, and the assistant's spoken
+  replies are written there in clear text — both feed the memory like typed messages (`docs/12` §15).
 - **Deterministic and auditable.** Same memory, same question → same result, byte for byte (tested across hash seeds).
 - **Small.** On a fused memory of 2,834 graph nodes and 3,901 facts: 11 ms median per search, 18 ms p95, 123 MB for
   the whole process. A bge-m3 embedding search on the same facts: 315 ms median, 496 ms p95 — and the model alone
@@ -68,6 +70,9 @@ The value of a memory shows over months of a real relationship, not in a benchma
 - **automatic recall** live since 18 October: on 100 messages up to 28 October, 37 received memories (≈ 230 tokens on average, `docs/11` §8); e.g.
   asked *"do you remember last week's shopping list?"*, the subject came back on its own and the assistant restored
   the 23 items of 15 October;
+- **voice**: on 28 October a voice message ("thanks for the reminder, I have the document for the insurer")
+  and the assistant's spoken reply were written to the raw log; that night's consolidation turned them into two cited
+  facts;
 - **28 October**: her whole history (126 daily batches) re-consolidated twice with her production model, old vs new
   consolidation rule, on copies: 422 → 732 facts, 54 % → 71 % of the user's messages cited by at least one fact,
   **22 → 36 correct answers out of 80** questions drawn from her real messages (16 gained / 2 lost, McNemar p = 0.001).

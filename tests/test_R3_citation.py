@@ -18,7 +18,8 @@ sources = {f"{L}:116": ("[22:11 francis] Le devis global pour la flotte est de 1
            f"{L}:139": ("[22:17 francis] je ne sais pas exactement... le stock de consommables doit être aux alentours de 1200€.", False),
            f"{L}:28": ("[21:50 francis] parle moi en français s'il te plait", False),
            f"{L}:177": ("[14:33 francis] Tu n'as pas intégré le garage Dupont non plus dans la liste des clients.", False),
-           f"{L}:200": ("[22:30 francis] Mon tarif est de 45 € l'élément.", False)}
+           f"{L}:200": ("[22:30 francis] Mon tarif est de 45 € l'élément.", False),
+           f"{L}:210": ("[18:55 francis] peux-tu utiliser météo france pour le bulletin ?", False)}
 def ctl(fait, src, section="semantic"):
     return c._controler({"noeud": "devis_flotte", "section": section, "fait": fait, "src": [src]}, sources)
 
@@ -39,6 +40,12 @@ r = ctl("Francis veut que le garage Dupont figure dans la liste des clients.", f
 verif("« Francis veut… » : le prénom ne compte plus contre le fait", r[0], r[1])
 r = ctl("Francis adore la pêche en mer et le jardinage.", f"{L}:177")
 verif("…mais un fait sans rapport avec la source reste rejeté", not r[0], r[1])
+
+print("── noms composés : trait d'union et espace se valent (faux rejet du 28/10) ──")
+r = ctl("Francis a choisi Météo-France pour le bulletin.", f"{L}:210")
+verif("« Météo-France » accepté quand la source dit « météo france »", r[0], r[1])
+r = ctl("Francis a choisi Météo-Belgique pour le bulletin.", f"{L}:210")
+verif("…mais un nom composé absent reste rejeté", not r[0] and "Météo-Belgique" in r[1], r[1])
 
 print(f"\n{ok} réussis, {ko} échoués")
 sys.exit(1 if ko else 0)
