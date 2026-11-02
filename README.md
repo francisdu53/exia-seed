@@ -47,7 +47,8 @@ conversation ──► raw/ (append-only, hash-chained, secrets masked)
 
 - **Consolidation with a citation check.** The LLM proposes facts; a deterministic checker refuses any number, date or
   proper noun absent from the cited lines, and anything that rests only on the agent's own words (the agent must not
-  persuade itself). Nothing invented enters the memory.
+  persuade itself). It is a lexical check: a false statement built from the source's own words can still pass — a
+  known blind spot (`docs/04` §5.3).
 - **Associative retrieval, no embeddings.** BM25 opens the door; spreading activation on the sparse graph ranks the
   candidates and adds associated subjects; the facts that *create* a link are offered as leads.
 - **Automatic recall.** On each message, the subjects it touches surface on their own (phase 2), as data, never as
