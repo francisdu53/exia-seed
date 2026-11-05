@@ -241,3 +241,34 @@ pour Terra. Pour le limiter :
 l'effet de la consigne) ; **U** — consigne adaptée, effort « medium » (la recommandation d'OpenAI). Mêmes mesures, mêmes
 questions, même lecteur et même juge ; mêmes seuils du §6, appliqués à chacune face aux deux passages d'Astra déjà
 faits. Budget : moins de 2 $.
+
+### 10.1 Résultats (5 novembre 2026)
+
+| Variante | Bonnes réponses | Couverture | Faits retenus (moy.) | Lots perdus | Face à Astra, premier passage |
+|---|---|---|---|---|---|
+| Astra, consigne de production (référence) | 62,7 % | 69,7 % | 105 | 0 | — |
+| Terra, consigne de production (§9) | 59,2 % | 58,8 % | 76 | 0 | 11 gagnées, 6 perdues, p = 0,33 |
+| **Terra T — consigne adaptée, effort « low »** | **69,7 %** ✓ | **79,4 %** ✓ | **127,5** | **0** ✓ | **13 gagnées, 3 perdues, p = 0,02** |
+| Terra U — consigne adaptée, effort « medium » | 44,4 % ✗ | 50,9 % ✗ | 104 | 12 ✗ | 7 gagnées, 15 perdues, p = 0,13 |
+
+- **T est qualifiée sur Q1, Q2 et Q4** ; Q3 attend la relecture à l'aveugle. Elle fait mieux qu'Astra et sa consigne
+  de production : +7 points de bonnes réponses, +10 points de couverture, environ 20 % de faits en plus, aux deux
+  passages (129 puis 126 faits : plus stable que Terra avec la consigne de production). Les rejets « nombre absent des
+  sources » tombent de 18 à 0 ; les rejets « nom propre absent » montent (37, contre 19), si bien que le total des
+  rejets reste au niveau d'avant (19 en moyenne).
+- **Coût réel** : 0,14 à 0,23 $ par passage sur les six journées, contre 2,14 $ au prix API équivalent pour Astra —
+  environ dix fois moins ; de l'ordre de 0,6 $ par mois à une consolidation par jour.
+- **U échoue, et c'est d'abord un défaut du banc** : à l'effort « medium », Terra raisonne davantage (environ 10 500
+  tokens de raisonnement sur un passage, contre 174 en « low »), et le raisonnement compte dans la sortie maximale de
+  8 000 tokens ; les réponses tronquées sont refusées. La correction notée au §9.3 (ne pas imposer de limite plus basse
+  que la production) n'a pas été appliquée à cette variante : c'est une erreur de conduite du banc, pas un verdict sur
+  l'effort « medium ». La partie de U qui n'a pas été tronquée (journées calmes et moyennes) est au niveau de T.
+
+**Réserves, dites sans les atténuer :**
+- **Mêmes journées** : le diagnostic qui a guidé la consigne venait de ces six jours ; le gain est donc à confirmer sur
+  d'autres journées avant toute décision de production.
+- **Juge et questions par Terra** : les questions, le lecteur et le juge sont ceux de tout le banc (Terra, effort
+  « none »), les mêmes pour Astra ; un biais de préférence pour sa propre façon d'écrire ne peut pas être exclu. La
+  couverture, elle, ne dépend d'aucun modèle — et c'est sur elle que l'écart est le plus net.
+- **La consigne adaptée n'a rien de propre à Terra** : rien ne dit qu'elle n'améliorerait pas Astra aussi. La
+  comparaison juste suivante est Astra avec la même consigne.
