@@ -17,6 +17,8 @@ DEFAUTS: Dict[str, Any] = {
     "phase": 1,                    # 1 = écriture seule ; 2 = rappel injecté
     "consolidation_auto": True,    # consolider dès qu'un lot se ferme (fil d'arrière-plan)
     "consolidation_effort": "low", # tâche mécanique : effort au plancher
+    "consolidation_modele": "",    # docs/17 §11 : vide = le modèle principal de l'agent ; ex. « gpt-6.1-terra »
+    "consolidation_consigne": "production",  # « production » ou « adaptee » (masque de langue ; avec un agent seulement)
     "consolidation_max_tokens_entree": 40000,
     "rappel_a_blanc": True,
     "fiches": True,                # docs/12 : fiche d'identité des pages touchées, à chaque consolidation        # étape 6a : calculer et journaliser le rappel, sans l'injecter

@@ -97,9 +97,10 @@ def _racine(mot: str) -> str:
 class Consolidateur:
     def __init__(self, racine: Path, tz, appel_llm: AppelLLM, *, modele: str = "",
                  max_tokens_entree: int = 40000, nom_agent: str = "assistant", nom_utilisateur: str = "",
-                 interlocuteurs=(), fiches: bool = True):
+                 interlocuteurs=(), fiches: bool = True, consigne: str = "production"):
         self.racine = racine
         self.fiches = fiches
+        self.consigne = consigne                       # « production » ou « adaptee » (docs/17 §11 ; avec un agent seulement)
         self.tz = tz
         self.appel_llm = appel_llm
         self.modele = modele or "inconnu"
@@ -198,9 +199,11 @@ class Consolidateur:
             f"- {p.entete.get('node')} ({p.entete.get('node_type')}) : "
             + ", ".join(a for l in (p.entete.get("aliases") or {}).values() for a in (l or []))
             for p in existantes) or self.masque.textes["aucun"]
-        systeme = self.masque.consigne_consolidation(
-            avec_agent=bool(self.nom_agent),
-            exemple_locuteur=self.nom_utilisateur or (self.interlocuteurs[0].lower() if self.interlocuteurs else ""))
+        locuteur = self.nom_utilisateur or (self.interlocuteurs[0].lower() if self.interlocuteurs else "")
+        if self.consigne == "adaptee" and self.nom_agent:
+            systeme = self.masque.consigne_consolidation_adaptee(locuteur)
+        else:
+            systeme = self.masque.consigne_consolidation(avec_agent=bool(self.nom_agent), exemple_locuteur=locuteur)
         if self.nom_utilisateur:
             systeme += self.masque.consigne_personnes(self.nom_utilisateur, _pages.slug(self.nom_utilisateur))
         elif self.interlocuteurs:
@@ -565,7 +568,7 @@ class Consolidateur:
         return rapport
 
 
-def appel_llm_hermes(effort: str = "low", timeout: float = 300.0) -> AppelLLM:
+def appel_llm_hermes(effort: str = "low", timeout: float = 300.0, modele: str = "") -> AppelLLM:
     """Appel via le client auxiliaire d'Hermès, avec le fournisseur et le modèle PRINCIPAUX de
     l'agent passés explicitement : même lancée hors de la passerelle, la consolidation ne peut pas
     partir sur un autre abonnement."""
@@ -576,7 +579,7 @@ def appel_llm_hermes(effort: str = "low", timeout: float = 300.0) -> AppelLLM:
         modele_cfg = (load_config() or {}).get("model") or {}
         rep = call_llm(task="exia_seed_consolidation",
                        provider=modele_cfg.get("provider") or None,
-                       model=modele_cfg.get("default") or None,
+                       model=modele or modele_cfg.get("default") or None,
                        messages=messages, reasoning_config=parse_reasoning_effort(effort), timeout=timeout)
         return extract_content_or_reasoning(rep)
     return appeler

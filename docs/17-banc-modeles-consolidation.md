@@ -298,3 +298,17 @@ journées jamais utilisées** (C3, C4, M3, M4, I3, I4 : deux par profil, mêmes 
   faits et en couverture (+1 point), au lieu de +20 % de faits et +10 points. Le résultat qui compte pour une décision
   est celui-ci : **même qualité, environ dix fois moins cher.**
 - **Dépense totale du banc 17 : 3,65 $.**
+
+### 11.2 En production : un essai
+
+Décision du 5/11 : la consolidation de la mémoire de Nexa passe à **GPT-6.1 Terra avec la consigne adaptée**, à titre
+d'**essai de quelques semaines**, jugé sur sa vraie mémoire. Ses conversations restent sur son modèle principal (GPT-6
+Astra) : seule la consolidation change. Deux réglages, sans effet tant qu'on ne les pose pas :
+
+- `consolidation_modele` : vide = le modèle principal de l'agent ;
+- `consolidation_consigne` : `production` (défaut) ou `adaptee`. La variante adaptée vit dans le masque de langue
+  français, identique au caractère près à celle du banc ; une langue qui n'en a pas encore (l'anglais) et les
+  conversations entre personnes gardent la consigne de production : rien n'est traduit ni étendu sans être mesuré.
+
+Retour arrière : retirer les deux réglages. Le suivi compare chaque jour les faits retenus, les rejets et la couverture à
+la période de référence avec Astra ; ses résultats seront publiés en agrégats.

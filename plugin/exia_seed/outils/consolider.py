@@ -46,11 +46,13 @@ def main() -> int:
     if ouvert and (a.forcer or ouvert.get("jour") != maintenant(tz).date().isoformat()):
         brut.fermer("fin_de_journee")
 
-    r = Consolidateur(racine, tz, appel_llm_hermes(reg["consolidation_effort"]), modele=modele_principal(),
+    modele = reg.get("consolidation_modele") or ""                     # docs/17 §11 : vide = modèle principal
+    r = Consolidateur(racine, tz, appel_llm_hermes(reg["consolidation_effort"], modele=modele), modele=modele or modele_principal(),
                       max_tokens_entree=reg["consolidation_max_tokens_entree"], nom_agent=agent,
                       nom_utilisateur=_etiquette(reg["nom_utilisateur"]) if reg.get("nom_utilisateur") else "",
                       interlocuteurs=[_etiquette(n) for n in (reg.get("interlocuteurs") or ())],
-                      fiches=bool(reg.get("fiches", True))).consolider()
+                      fiches=bool(reg.get("fiches", True)),
+                      consigne=reg.get("consolidation_consigne") or "production").consolider()
     if a.verbeux or r.get("statut") not in ("ok", "rien", "vide", "deja_en_cours"):
         print(json.dumps(r, ensure_ascii=False, indent=1))
     return 0

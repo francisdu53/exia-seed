@@ -66,6 +66,11 @@ class Masque:
     def consigne_consolidation(self, avec_agent: bool, exemple_locuteur: str) -> str:
         raise NotImplementedError
 
+    def consigne_consolidation_adaptee(self, exemple_locuteur: str) -> str:
+        """Variante écrite pour un petit modèle (docs/17 §10-11), conversation utilisateur + assistant seulement.
+        Une langue qui n'en a pas encore garde la consigne de production : rien n'est traduit sans être mesuré."""
+        return self.consigne_consolidation(True, exemple_locuteur)
+
     def consigne_personnes(self, utilisateur: str, slug: str) -> str:
         """Précision ajoutée quand l'utilisateur est connu (une personne + un agent)."""
         raise NotImplementedError
