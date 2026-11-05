@@ -139,3 +139,83 @@ chacun perd.
 - **Ce qui est publié** : ce protocole, puis **uniquement les résultats des modèles**, agrégés — scores, taux, coûts,
   par profil de journée. Aucune donnée mémorielle, aucun extrait du brut, aucun fait, aucun exemple précis ; le contexte
   est décrit de façon abstraite. Le contrôle humain est rapporté en nombres (vrais, faux, mal attribués), sans les faits.
+
+## 9 — Résultats (5 novembre 2026)
+
+Exécution complète le 5/11 : 6 modèles × 2 passages × 6 journées, puis 71 questions par mémoire (de 1 à 28 selon la
+journée), lecteur et juge Terra. **Dépense réelle de tout le banc : 2,04 $** (analyse complémentaire comprise ; Astra
+passe par l'abonnement de production). Seuils du §6 appliqués tels quels ; moyenne des deux passages.
+
+### 9.1 Le verdict pré-enregistré
+
+| Modèle | Bonnes réponses | Couverture | Lots perdus (sur 12 journées-passages) | Verdict |
+|---|---|---|---|---|
+| **GPT-6 Astra** (référence) | **62,7 %** | **69,7 %** | 0 | — |
+| GPT-6.1 Terra | 59,2 % ✓ | 58,8 % ✗ (seuil 64,7 %) | 0 ✓ | **non qualifié**, sur la couverture |
+| GPT-6 Luna | 33,1 % ✗ | 31,6 % ✗ | 0 ✓ | non qualifié |
+| Claude Haiku 5.5 | 27,5 % ✗ | 14,5 % ✗ | 16 ✗ | non qualifié |
+| Mistral Small 4 | 27,5 % ✗ | 23,2 % ✗ | 16 ✗ | non qualifié |
+| Mistral Large 4 | 28,2 % ✗ | 24,1 % ✗ | 6 ✗ | non qualifié |
+
+- **Aucun modèle n'est qualifié.** Terra est le seul proche : à égalité apparente sur les questions (11 questions
+  gagnées, 6 perdues face à Astra sur le premier passage, McNemar p = 0,33 — pas de différence visible, ce qui n'est pas
+  une preuve d'équivalence), mais il cite environ 11 points de messages de moins. Il retient en moyenne 76 faits sur les
+  six journées, contre 105 pour Astra, et varie davantage d'un passage à l'autre (83 puis 69 faits).
+- Les quatre autres perdent nettement sur les questions (McNemar p ≤ 0,013) et retiennent trois à quatre fois et demie moins de
+  faits qu'Astra. La perte se concentre sur les journées intensives.
+- **Contrôle humain (Q3)** : en attente de la relecture à l'aveugle par Francis ; il ne peut plus changer aucun verdict
+  (tous les modèles échouent déjà sur Q1 ou Q2).
+
+### 9.2 Le coût réel, compté par les fournisseurs
+
+| Modèle | Coût réel d'un passage sur les six journées | Mois estimé (une consolidation par jour) |
+|---|---|---|
+| Astra (prix API équivalent) | 2,14 $ | ≈ 7,3 $ |
+| Terra | 0,11 à 0,20 $ | ≈ 0,5 $ |
+| Mistral Large 4 | 0,09 à 0,16 $ | ≈ 0,4 $ |
+| Haiku 5.5 | 0,04 $ | ≈ 0,13 $ |
+| Mistral Small 4 | 0,02 à 0,03 $ | ≈ 0,08 $ |
+| Luna | 0,01 à 0,02 $ | ≈ 0,05 $ |
+
+Le mois est extrapolé du volume des 42 jours connus ; il suppose le même mélange de journées.
+
+- **Les estimations du code (caractères ÷ 4) sous-estiment** : chez Astra, 101 700 tokens d'entrée estimés pour
+  111 900 réels (+10 %), 17 900 de sortie pour 20 400 (+14 %).
+- **Le raisonnement** : à l'effort « low », Terra n'a compté que 209 tokens de raisonnement sur un passage, Luna 3 293 ;
+  les autres fournisseurs ne le détaillent pas (il est compris dans la sortie). L'abonnement d'Astra ne le détaille pas
+  non plus.
+- **Le nombre de passages par jour pèse autant que le modèle.** En production, la consolidation tourne à chaque fin de
+  session (environ quatre fois par jour) et renvoie chaque fois la consigne et le catalogue des pages ; sur les mêmes
+  journées, une consolidation unique a demandé environ 40 % d'entrée en moins. C'est un levier sans perte connue, à
+  mesurer avant de l'adopter.
+
+### 9.3 Un défaut des conditions, et l'analyse complémentaire
+
+La réponse maximale de 8 000 tokens (§3) venait d'un banc précédent ; la consolidation de production n'en impose pas.
+Pour la référence, l'écart est resté sans effet (sa plus longue réponse : 5 873 tokens). Mais Haiku 5.5 et les deux
+Mistral écrivent plus long : leurs réponses tronquées étaient refusées et, parce que le cache du banc renvoyait la même
+réponse au nouvel essai au lieu de rappeler le modèle comme le ferait la production, le lot était perdu.
+
+**Analyse complémentaire, hors verdict** : les trois modèles relancés avec une sortie de 32 000 tokens et de vrais
+nouveaux essais.
+
+| Complémentaire | Bonnes réponses | Couverture | Lots perdus |
+|---|---|---|---|
+| Haiku 5.5 | 34,5 % | 29,4 % | 0 |
+| Mistral Large 4 | 30,3 % | 26,3 % | 0 |
+| Mistral Small 4 | 23,9 % | 15,8 % | 21 (JSON invalide même au nouvel essai) |
+
+Avec de la place, Haiku et Mistral Large ne perdent plus de lots, mais restent très loin d'Astra : la troncature
+n'expliquait pas leur retard. **Correction pour les bancs suivants** : pas de limite de sortie plus basse que celle de
+la production, et un nouvel essai doit être un nouvel appel.
+
+### 9.4 Ce que ça veut dire
+
+- **Pour un assistant personnel comme Nexa** : la consigne de consolidation actuelle, écrite et éprouvée avec Astra, ne
+  se transporte pas telle quelle vers un modèle bon marché. Le seul candidat sérieux est Terra, environ quatorze fois moins
+  cher, qui perd sur la couverture.
+- **La question suivante n'est pas « quel modèle », mais « quelle consigne pour quel modèle »** : le banc a testé la
+  consigne d'Astra sur tous (§7). Un banc suivant pourrait adapter la consigne à Terra, sur d'autres journées que ces
+  six, qui ont désormais servi.
+- **Les journées intensives font la différence** : sur les journées calmes, les écarts sont faibles ; c'est quand la
+  matière abonde que les petits modèles en laissent tomber.
