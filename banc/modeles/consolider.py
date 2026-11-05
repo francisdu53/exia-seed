@@ -34,7 +34,7 @@ if os.environ.get("BANC_EFFORT"):                                       # effort
     for _m, (_f, _e) in list(appel.MODELES.items()):
         appel.MODELES[_m] = (_f, os.environ["BANC_EFFORT"])
 
-JOURS = ("C1", "C2", "M1", "M2", "I1", "I2")
+JOURS = tuple(json.loads((BANC / f"{os.environ.get('BANC_PANEL', 'jours')}.json").read_text(encoding="utf-8")))
 RUNS = BANC / ("runs-factice" if appel.FACTICE else "runs")   # l'essai à blanc ne touche jamais le vrai banc
 
 
@@ -45,10 +45,15 @@ def fonction_astra(run: str):
     from hermes_cli.config import load_config
     from hermes_constants import parse_reasoning_effort
     cfg = (load_config() or {}).get("model") or {}
+    vus = {}
 
     def appeler(messages):
         role = "fiches" if "FICHE D'IDENTITÉ" in messages[0]["content"] else "consolidation"
         k = appel.cle("gpt-6-astra", messages, 0, False, run)
+        if os.environ.get("BANC_NOUVEL_ESSAI") == "1":           # même règle que les modèles par API (§9.3)
+            vus[k] = vus.get(k, 0) + 1
+            if vus[k] > 1:
+                k = appel.cle("gpt-6-astra", messages, 0, False, f"{run}+essai{vus[k]}")
         deja = appel.en_cache("gpt-6-astra", k)
         if deja:
             return deja["texte"]

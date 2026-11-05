@@ -35,8 +35,9 @@ RL.modele = appel; JL.modele = appel                                   # lecteur
 RUNS = BANC / ("runs-factice" if appel.FACTICE else "runs")
 SORTIE = BANC / ("mesures-factices" if appel.FACTICE else os.environ.get("BANC_MESURES", "mesures"))
 PASSAGES = tuple(os.environ.get("BANC_PASSAGES", "r1,r2").split(","))   # analyse complémentaire : s1,s2 (Astra : r1,r2)
-JOURS = ("C1", "C2", "M1", "M2", "I1", "I2")
-PROFIL = {"C1": "calme", "C2": "calme", "M1": "moyen", "M2": "moyen", "I1": "intensif", "I2": "intensif"}
+JOURS = tuple(json.loads((BANC / f"{os.environ.get('BANC_PANEL', 'jours')}.json").read_text(encoding="utf-8")))
+PROFIL = {j: {"C": "calme", "M": "moyen", "I": "intensif"}[j[0]] for j in JOURS}
+PASSAGES_REF = tuple(os.environ.get("BANC_PASSAGES_REF", "r1,r2").split(","))
 REFERENCE = "gpt-6-astra"
 MAINTENANT = datetime(2026, 11, 5, 12, 0)
 ENTETE = re.compile(r"^\[(\d\d:\d\d) ([a-z_]+)\] ?(.*)$")
@@ -159,7 +160,7 @@ def main():
     qs = questions()
     print("questions :", len(qs), {j: sum(q["jour"] == j for q in qs) for j in JOURS}, flush=True)
     def passages(m):
-        return ("r1", "r2") if m == REFERENCE else PASSAGES
+        return PASSAGES_REF if m == REFERENCE else PASSAGES
     modeles = [m for m in appel.MODELES if all((RUNS / m / r / j / "fini.json").exists() for r in passages(m) for j in JOURS)]
     print("modèles complets :", modeles, flush=True)
     res = {}

@@ -272,3 +272,17 @@ faits. Budget : moins de 2 $.
   couverture, elle, ne dépend d'aucun modèle — et c'est sur elle que l'écart est le plus net.
 - **La consigne adaptée n'a rien de propre à Terra** : rien ne dit qu'elle n'améliorerait pas Astra aussi. La
   comparaison juste suivante est Astra avec la même consigne.
+
+## 11 — Confirmation sur six nouvelles journées (pré-enregistré le 5/11, avant exécution)
+
+**Question de décision** : remplacer la consolidation de production (Astra, consigne actuelle) par Terra avec la
+consigne adaptée du §10 vaut-il le coup ? Le §10 a tourné sur des journées déjà vues ; on confirme ici sur **six
+journées jamais utilisées** (C3, C4, M3, M4, I3, I4 : deux par profil, mêmes tiers de volume), la consigne
+`consigne_terra.txt` **inchangée** (aucune retouche depuis le §10).
+
+- Bras : **Astra, consigne de production** (la référence d'aujourd'hui) contre **Terra, consigne adaptée, effort
+  « low »** (la proposition) ; deux passages chacun.
+- Conditions corrigées selon le §9.3 pour les deux bras : sortie jusqu'à 32 000 tokens côté API (la production n'a
+  pas de limite), et un nouvel essai est un vrai nouvel appel.
+- Mêmes mesures, mêmes seuils du §6. **Décision** : si Terra est qualifiée ici aussi (Q1, Q2, Q4, puis Q3 après
+  relecture), son passage en production est proposé à Francis ; sinon, on garde la production telle quelle.

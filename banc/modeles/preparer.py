@@ -12,6 +12,7 @@ Pour un jour J :
     python3 preparer.py
 """
 import json
+import os
 import re
 import shutil
 import sys
@@ -23,7 +24,8 @@ from exia_seed import pages as P                                       # noqa: E
 
 SRC, BANC = Path("/src"), Path("/banc")
 # Les six jours (étiquette → date) vivent dans un fichier PRIVÉ du banc, jamais dans le dépôt (docs/17 §8)
-JOURS = json.loads((BANC / "jours.json").read_text(encoding="utf-8"))
+PANEL = os.environ.get("BANC_PANEL", "jours")                          # jours.json : panel 1 ; panel2.json : confirmation (§11)
+JOURS = json.loads((BANC / f"{PANEL}.json").read_text(encoding="utf-8"))
 _RE_REG = re.compile(r"^## (\d{4}-\d\d-\d\d) [\d:]+ — (\w+) · ")
 _RE_RAW = re.compile(r"raw/(\d{4}-\d\d-\d\d)_")
 _RE_SRC = re.compile(r"(?:^| )src:(\S+)")
@@ -108,7 +110,7 @@ def preparer(etiq: str, jour: str, reg) -> dict:
 def main():
     reg = dates_registre()
     bilan = {etiq: preparer(etiq, jour, reg) for etiq, jour in JOURS.items()}
-    (BANC / "depart" / "bilan.json").write_text(json.dumps(bilan, indent=1, ensure_ascii=False), encoding="utf-8")
+    (BANC / "depart" / f"bilan-{PANEL}.json").write_text(json.dumps(bilan, indent=1, ensure_ascii=False), encoding="utf-8")
     for etiq, b in bilan.items():
         print(etiq, json.dumps(b, ensure_ascii=False))
 
