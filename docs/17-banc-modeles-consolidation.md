@@ -219,3 +219,25 @@ la production, et un nouvel essai doit être un nouvel appel.
   six, qui ont désormais servi.
 - **Les journées intensives font la différence** : sur les journées calmes, les écarts sont faibles ; c'est quand la
   matière abonde que les petits modèles en laissent tomber.
+
+## 10 — Une consigne adaptée à Terra (pré-enregistré le 5/11, avant exécution)
+
+**Décision de Francis** : rejouer Terra sur **le même panel**, avec une consigne écrite pour lui, afin de comparer sur
+les mêmes faits. **Biais connu, écrit d'avance** : ces six journées ont déjà servi ; le résultat sera donc optimiste
+pour Terra. Pour le limiter :
+
+- la consigne s'appuie sur deux sources seulement : le guide officiel de la famille GPT-6 (OpenAI n'en publie pas pour
+  Terra seul : consignes précises dites une fois, sans insistance typographique, but final explicite, travail
+  décomposé puis vérifié ; effort « medium » recommandé par défaut) et le **diagnostic agrégé** du §9 — Terra propose
+  environ 22 % de fragments de moins qu'Astra sur les mêmes lignes, et ses rejets « nombre absent des sources » sont
+  neuf fois plus nombreux (18 contre 2) : il calcule ou convertit au lieu de recopier ;
+- elle est écrite **une seule fois** (`banc/modeles/consigne_terra.txt`) et lancée **une seule fois**, sans aucun
+  aller-retour sur les résultats ; même contrat de sortie, même message utilisateur, même contrôle de citation ;
+- ce qu'elle change : le but et le critère de fin explicites (chaque message à détail concret couvert), une méthode
+  message par message avec vérification finale, la consigne de recopier nombres, dates et noms sans rien calculer dans
+  le fait ; le reste des règles de production, dit une fois chacune.
+
+**Deux variantes, deux passages chacune** : **T** — consigne adaptée, effort « low » (celui de la production : isole
+l'effet de la consigne) ; **U** — consigne adaptée, effort « medium » (la recommandation d'OpenAI). Mêmes mesures, mêmes
+questions, même lecteur et même juge ; mêmes seuils du §6, appliqués à chacune face aux deux passages d'Astra déjà
+faits. Budget : moins de 2 $.

@@ -23,7 +23,16 @@ ICI = Path(__file__).resolve().parent
 BANC = Path(os.environ.get("BANC", "/banc"))
 sys.path.insert(0, str(BANC / "plugin")); sys.path.insert(0, str(ICI))
 import appel                                                           # noqa: E402
+from exia_seed import consolidation as _C                              # noqa: E402
 from exia_seed.consolidation import Consolidateur                      # noqa: E402
+
+# Variante de consigne (docs/17 §10) : la consigne SYSTÈME de production remplacée par un fichier du banc, le reste
+# (message utilisateur, contrôle de citation, écriture) inchangé. Sans variable : la consigne de production.
+if os.environ.get("BANC_CONSIGNE"):
+    _C.PROMPT_SYSTEME = (ICI / os.environ["BANC_CONSIGNE"]).read_text(encoding="utf-8").strip()
+if os.environ.get("BANC_EFFORT"):                                       # effort de raisonnement de la variante
+    for _m, (_f, _e) in list(appel.MODELES.items()):
+        appel.MODELES[_m] = (_f, os.environ["BANC_EFFORT"])
 
 JOURS = ("C1", "C2", "M1", "M2", "I1", "I2")
 RUNS = BANC / ("runs-factice" if appel.FACTICE else "runs")   # l'essai à blanc ne touche jamais le vrai banc
