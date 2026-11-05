@@ -3,8 +3,7 @@
 > *Version publique : les noms de personnes, d'entreprises et de lieux, et les informations privées, sont fictifs pour les besoins de la démonstration, mais fondés sur des cas réels ; certaines informations ont été retirées par respect de la vie privée — voir `00-AVERTISSEMENT.md`.*
 
 **Statut : protocole PRÉ-ENREGISTRÉ — rien n'est mesuré.** Écrit et publié le 5 novembre 2026, AVANT tout appel.
-Francis a délégué le jugement des seuils (§6) : ils sont fixés ici, avant de voir le moindre résultat, et ne bougeront
-pas. Les résultats seront ajoutés ensuite, échecs compris.
+Les seuils (§6) sont fixés ici, avant de voir le moindre résultat, et ne bougeront pas. Les résultats seront ajoutés ensuite, échecs compris.
 **Question :** quels modèles consolident la mémoire de Nexa aussi bien que son modèle de production, et à quel coût
 **réel** — compté par le fournisseur, raisonnement compris ?
 **Référence :** `04` (consolidation, contrôle de citation), `13` §19 (rejeu sur copie, mesures de couverture et
@@ -35,8 +34,7 @@ leur contenu n'est jamais publié.
 
 Les journées calmes servent aussi de piège : peu de matière, le modèle doit savoir ne rien inventer.
 
-**Copies uniquement** : la mémoire vivante de Nexa n'est jamais écrite. Le brut est envoyé tel quel aux fournisseurs,
-sur décision de Francis (§8).
+**Copies uniquement** : la mémoire vivante de Nexa n'est jamais écrite. Le brut est envoyé tel quel aux fournisseurs (§8).
 
 ## 3 — Le même point de départ pour chaque modèle
 
@@ -134,8 +132,7 @@ chacun perd.
 
 - **Les fournisseurs** (comptes API standard, politiques lues le 05/11/2026) : pas d'entraînement par défaut chez
   OpenAI et Anthropic ; conservation jusqu'à 30 jours pour la surveillance des abus ; Anthropic traite hors d'Europe ;
-  Mistral traite en Europe par défaut (ses pages se contredisent sur l'entraînement ; l'option « Anonymous improvement
-  data » n'a pas été modifiée, par choix de Francis).
+  Mistral traite en Europe par défaut (ses pages se contredisent sur l'entraînement).
 - **Ce qui est publié** : ce protocole, puis **uniquement les résultats des modèles**, agrégés — scores, taux, coûts,
   par profil de journée. Aucune donnée mémorielle, aucun extrait du brut, aucun fait, aucun exemple précis ; le contexte
   est décrit de façon abstraite. Le contrôle humain est rapporté en nombres (vrais, faux, mal attribués), sans les faits.
@@ -286,3 +283,18 @@ journées jamais utilisées** (C3, C4, M3, M4, I3, I4 : deux par profil, mêmes 
   pas de limite), et un nouvel essai est un vrai nouvel appel.
 - Mêmes mesures, mêmes seuils du §6. **Décision** : si Terra est qualifiée ici aussi (Q1, Q2, Q4, puis Q3 après
   relecture), son passage en production est proposé à Francis ; sinon, on garde la production telle quelle.
+
+### 11.1 Résultats (5 novembre 2026)
+
+| Six journées jamais utilisées, deux passages | Bonnes réponses | Couverture | Faits retenus (moy.) | Lots perdus | Coût réel par passage |
+|---|---|---|---|---|---|
+| Astra, consigne de production (référence) | 65,3 % | 84,1 % | 93 | 0 | 1,91 $ (prix API équivalent) |
+| **Terra, consigne adaptée, effort « low »** | **73,4 %** ✓ | **85,2 %** ✓ | **96** | **0** ✓ | **0,11 à 0,19 $** |
+
+- **Terra est qualifiée sur Q1, Q2 et Q4 sur des journées qu'aucun réglage n'a vues** ; Q3 attend la relecture à
+  l'aveugle. Face à Astra sur le premier passage : 9 questions gagnées, 3 perdues (McNemar p = 0,15) — pas de différence
+  significative, l'écart va dans le sens de Terra. Elle est stable (95 puis 97 faits) et coûte environ dix fois moins.
+- **Le gain du §10.1 était en partie optimiste**, comme annoncé : sur ces journées, Terra fait jeu égal avec Astra en
+  faits et en couverture (+1 point), au lieu de +20 % de faits et +10 points. Le résultat qui compte pour une décision
+  est celui-ci : **même qualité, environ dix fois moins cher.**
+- **Dépense totale du banc 17 : 3,65 $.**
