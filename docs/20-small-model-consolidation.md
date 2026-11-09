@@ -107,7 +107,23 @@ the same 10,000-token lots take Haiku from 27.5 % to 70-72 %.
 
 ## 7. Luna's prompt in English (LongMemEval)
 
-*Pending — results to be added when the run completes.*
+`banc/modeles/consigne_luna_en.txt`: Luna's prompt translated, with the repository's English weekday rule (the nearest
+day of that name consistent with the tense) and a neutral example. 100 LongMemEval questions drawn (seed 1109, no
+abstention), *S* setting (one memory per question, consolidated session by session), Luna effort low, passes of at most
+10,000 tokens. **L0** the repository's English production prompt; **L1** Luna's prompt translated; reference: the
+memories of the earlier `confirm-lme` run (gpt-4o-mini, production prompt). Retrieval A, reader and judge of `docs/13`
+(gpt-4o-mini). Threshold, fixed before the run: L1 ≥ reference − 5 points.
+
+| 100 questions, *S* setting | Correct answers | Lost lots |
+|---|---|---|
+| Reference: gpt-4o-mini, English production prompt | 46.0 % | — |
+| L0 — Luna, English production prompt | 60.0 % | 0 |
+| **L1 — Luna, Luna's prompt in English** | **71.0 %** ✓ | **0** |
+
+- **The prompt transfers to English**: L1 against the reference, 27 questions won, 2 lost (McNemar p < 10⁻⁵); against
+  L0, 16 won, 5 lost (p = 0.027) — the same prompt changes help in English as in French.
+- Consolidation, reader and judge for the whole run (200 memories, 300 answers): $0.52.
+- Since this run, the English mask carries the variant: `consolidation_consigne: petit_modele` sends it.
 
 ## 8. Every consolidator tried — first panel
 

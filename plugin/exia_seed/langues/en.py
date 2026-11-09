@@ -135,6 +135,10 @@ won wouldn""".split())
         return _CONSIGNE.replace("{REGLE_4}", self._REGLE_4_AGENT if avec_agent else self._REGLE_4_PERSONNES) \
                         .replace("{LOCUTEUR}", exemple_locuteur or "mary")
 
+    def consigne_consolidation_petit_modele(self, exemple_locuteur: str) -> str:
+        """docs/20 §7 : qualified on LongMemEval (71.0 % against 60.0 % with the production prompt, Luna, 100 questions)."""
+        return _CONSIGNE_PETIT_MODELE.replace("{LOCUTEUR}", exemple_locuteur or "mary")
+
     def consigne_personnes(self, utilisateur: str, slug: str) -> str:
         return (f"\n\nThe USER is called “{utilisateur}”. Their HEALTH, FAMILY, personal CONSTRAINTS and HABITS "
                 f"attach to their node “{slug}” (type entite). Their prices, clients, projects and activities, "
@@ -255,3 +259,48 @@ Answer ONLY with a JSON object: {"fiches": {"<node>": {"fiche": "<sentence>", "m
 
 # Règle 3 jusqu'au 27/10/2026 (« utile plus tard ») — gardée pour les bancs de comparaison (docs/13 §14, §19).
 REGLE3_SELECTIVE = '3. Keep only what will be USEFUL LATER: people, companies, places, prices, work rules, preferences, decisions and their reason, notable events, deadlines, intentions. Ignore greetings, small talk, unanswered questions.'
+
+
+# docs/20 §7 (09/11/2026): the prompt qualified for a small model, in English — identical, character for character, to
+# banc/modeles/consigne_luna_en.txt.
+_CONSIGNE_PETIT_MODELE = """You consolidate the long-term memory of a personal assistant. You receive the numbered lines of a conversation between the user and their assistant, and sometimes notes from a register. You write, as JSON fragments, everything the user said that may be useful to them later. You answer only with the JSON object described at the end, with no text around it.
+
+THE GOAL
+The memory is used later to answer precise questions from the user: a name, a price, a date, an object, a decision. A detail missing from the memory is lost; one more fragment costs almost nothing. So aim for completeness: when you hesitate to keep a concrete detail, keep it. The work is done when every user message that carries a concrete detail is cited by at least one fragment.
+
+ABSOLUTE RULE, TO CHECK FOR EVERY FRAGMENT BEFORE WRITING IT
+Every proper noun and every number written in "fait" must appear WORD FOR WORD in the lines cited in "src". Otherwise, remove it from the fact. A fragment that breaks this rule is rejected and lost.
+- Do not write the subject's name if it is not in the cited line: it is already given by "noeud". The line says "the app computes the balance": write "The app computes the balance.", not "Budgeo computes the balance.".
+- Never write the date of the conversation in "fait" (neither the day nor the month): the system adds it. The date of an event goes only in "event_time".
+- Do not add any name taken from the node catalogue, from the memory or from your own knowledge: only what is written in the cited lines.
+
+WORK MESSAGE BY MESSAGE, IN ORDER, UNTIL THE LAST ONE
+- Go through the user's messages one by one, from the first to the last, without skipping any. The middle and the end of the conversation matter as much as the beginning.
+- A SHORT message matters as much as a long one: "ok, do it for Thursday", "the quote is approved", "put 450 dollars" carry a decision, a date or a number. Write its fragment.
+- Before answering, check that every user message that carries a concrete detail is cited by at least one fragment.
+
+METHOD
+1. Go through the user's messages one by one, in order, without skipping any.
+2. In each message, note every concrete detail: person, company, place, object, brand, model, number, price, quantity, color, date, time, duration; decision and its reason, work rule, preference, health, project, activity; intention, deadline; what was done, started, finished, bought, repaired, received, or attended by the user, with when it happened. A message that contains three details usually gives three fragments.
+3. What is said in passing counts as much as the main request.
+4. Ignore only greetings, thanks without content, small talk and unanswered questions.
+5. Before answering, go back over the list of the user's messages and check that each one that carries a concrete detail is covered.
+
+FIDELITY TO THE SOURCES
+- Each fragment cites in "src" the exact references of the lines it comes from, as they appear between square brackets.
+- Copy every number, every date and every proper noun exactly as they appear in the cited lines. In "fait", compute nothing: no conversion, no addition, no inferred time or date ("15 minutes before 5 pm" stays written that way). Computed dates go only in "event_time" and "echeance".
+- What the assistant said is kept only if the user confirmed it; then also cite the confirmation line. Lines from "systeme" are automatic reports: treat them as the assistant's words.
+
+THE FIELDS
+- "fait": a single, self-contained fact, understandable without the conversation, in English, with no polite formula.
+- "section": "semantic" (lasting fact), "episodic" (what happened, dated), "procedural" (rule of conduct, way of doing things), "prospective" (intention, upcoming deadline).
+- "noeud": the main subject, in lowercase_with_underscores. Reuse an existing node when it is the same subject (also compare the aliases); otherwise "nouveau": true, with "type_noeud" (entite, concept, evenement or etat_agent) and "alias" in English and in French. An ordinary event does not create an "evenement" node: attach it to the entity concerned, section "episodic". "etat_agent" means a lasting correction of the assistant's behaviour by the user.
+- "privacy": "personnel" (health, family, personal money), "confidentiel" if the user asked for it, otherwise "normal". A register note keeps its confidentiality.
+- "protected": true only for a life event (birth, death, marriage, graduation, serious accident).
+- "conf": 1.0 if the user states it, 0.7 if they suppose it, 0.5 if it is inferred.
+- "event_time": when the thing happens or happened (not when it is talked about); "echeance": the deadline. Format "YYYY-MM-DD", or "YYYY-MM-DDTHH:MM" if the time is said; null if it cannot be determined. Each conversation starts with its date and weekday. A weekday mentioned without a date refers to the nearest day of that name consistent with the tense: the NEXT one for something planned, the PREVIOUS one for something that already happened; "tomorrow" is the day after the conversation, "yesterday" the day before. In "fait", keep the user's words ("Monday", "tomorrow"): the date in full is added by the system.
+- "concepts": 1 to 3 generic, reusable themes (for example health, appointment, invoicing, client, savings, shopping), in lowercase_with_underscores; reuse existing concepts when they fit; a concept is not a proper noun. For each new concept, give in "concepts_nouveaux" 5 to 10 synonyms or close words in English and 2 to 4 in French.
+
+FORMAT
+{"fragments": [{"noeud": "city_library", "nouveau": false, "type_noeud": "entite", "alias": {"en": [], "fr": []}, "section": "semantic", "fait": "…", "src": ["raw/2026-09-22_01.md:12-13"], "conf": 1.0, "event_time": null, "echeance": null, "speaker": "{LOCUTEUR}", "privacy": "normal", "protected": false, "concepts": ["reading", "volunteering"]}], "concepts_nouveaux": {"concept_name": {"en": ["…"], "fr": ["…"]}}}
+If nothing deserves to be kept: {"fragments": [], "concepts_nouveaux": {}}"""

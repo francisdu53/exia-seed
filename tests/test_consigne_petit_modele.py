@@ -21,8 +21,10 @@ verif("placés avant la méthode", pm.index("RÈGLE ABSOLUE") < pm.index("MÉTHO
 verif("même contrat de sortie que la consigne adaptée",
       pm.split("FORMAT")[-1] == fr.consigne_consolidation_adaptee("francis").split("FORMAT")[-1])
 verif("l'exemple n'utilise qu'un nom inventé", "Budgeo" in pm)
-verif("anglais sans variante : la consigne adaptée (donc de production)",
-      en.consigne_consolidation_petit_modele("user") == en.consigne_consolidation_adaptee("user"))
+pe = en.consigne_consolidation_petit_modele("user")
+verif("anglais : la variante qualifiée (docs/20 §7), même contrat de sortie que la consigne de production",
+      "ABSOLUTE RULE" in pe and "MESSAGE BY MESSAGE" in pe and pe.split("FORMAT")[-1] == en.consigne_consolidation(True, "user").split("FORMAT")[-1],
+      pe.split("FORMAT")[-1][:100])
 vu = {}
 def faux(messages):
     if "FICHE D'IDENTITÉ" not in messages[0]["content"]:
