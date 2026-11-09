@@ -58,6 +58,10 @@ won wouldn""".split())
     semaine_derniere = "last week"
     motif_jour_passe = r"\blast\s+{jour}\b"
     jour_nu_passe = True
+    motif_ordinal = r"(?:st|nd|rd|th)?"
+    motif_aujourdhui = r"\btoday\b|\btonight\b|\bthis (?:morning|afternoon|evening)\b"
+    motif_decalage = r"\bin\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|ten|fifteen)\s+(days?|weeks?)\b"
+    mot_semaine = "week"
     prefixe_echeance = "deadline:"
 
     re_retrait_precedent = re.compile(

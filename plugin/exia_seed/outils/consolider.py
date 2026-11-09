@@ -22,6 +22,9 @@ from exia_seed.ingestion import Brut                                     # noqa:
 from exia_seed.util import fuseau, maintenant                            # noqa: E402
 
 
+PASSAGES_MAX = 40
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--forcer", action="store_true", help="fermer aussi le lot du jour")
@@ -47,12 +50,24 @@ def main() -> int:
         brut.fermer("fin_de_journee")
 
     modele = reg.get("consolidation_modele") or ""                     # docs/17 §11 : vide = modèle principal
-    r = Consolidateur(racine, tz, appel_llm_hermes(reg["consolidation_effort"], modele=modele), modele=modele or modele_principal(),
+    cons = Consolidateur(racine, tz, appel_llm_hermes(reg["consolidation_effort"], modele=modele), modele=modele or modele_principal(),
                       max_tokens_entree=reg["consolidation_max_tokens_entree"], nom_agent=agent,
                       nom_utilisateur=_etiquette(reg["nom_utilisateur"]) if reg.get("nom_utilisateur") else "",
                       interlocuteurs=[_etiquette(n) for n in (reg.get("interlocuteurs") or ())],
                       fiches=bool(reg.get("fiches", True)),
-                      consigne=reg.get("consolidation_consigne") or "production").consolider()
+                      consigne=reg.get("consolidation_consigne") or "production",
+                      observateur_k=int(reg.get("catalogue_observateur_k") or 0))
+    # docs/20 §10 : des passages de 10 000 tokens au plus — on enchaîne jusqu'à épuisement des lots, sans boucler
+    # sur un lot qui échoue (garde-fou : PASSAGES_MAX)
+    r, faits, passages = {"statut": "rien"}, 0, 0
+    while passages < PASSAGES_MAX:
+        avant = (list(cons.lots_en_attente()), len(cons.registre.en_attente()))
+        if not avant[0] and not avant[1] and passages:
+            break
+        r = cons.consolider(); passages += 1; faits += r.get("faits_retenus") or 0
+        if r.get("statut") not in ("ok", "vide") or (list(cons.lots_en_attente()), len(cons.registre.en_attente())) == avant:
+            break
+    r = {**r, "passages": passages, "faits_retenus_total": faits}
     if a.verbeux or r.get("statut") not in ("ok", "rien", "vide", "deja_en_cours"):
         print(json.dumps(r, ensure_ascii=False, indent=1))
     return 0

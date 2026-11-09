@@ -312,3 +312,9 @@ Astra) : seule la consolidation change. Deux réglages, sans effet tant qu'on ne
 
 Retour arrière : retirer les deux réglages. Le suivi compare chaque jour les faits retenus, les rejets et la couverture à
 la période de référence avec Astra ; ses résultats seront publiés en agrégats.
+
+---
+
+*Continued in English (November 2026): `docs/19-targeted-node-list.md` (showing the consolidation model only the
+pages the search brings back, from 53 to 2,129 pages) and `docs/20-small-model-consolidation.md` (GPT-6 Luna and
+Claude Haiku 5.5 qualified as consolidators, lot sizes, reasoning effort, the full comparison of models).*

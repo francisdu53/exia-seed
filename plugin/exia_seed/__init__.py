@@ -246,13 +246,20 @@ class ExiaSeedProvider(MemoryProvider):
         return ""              # phase 1 : rien n'est injecté dans le résumé
 
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
-        self._fermer_lot("fin_de_session")
+        if self._ferme_en_fin_de_session():
+            self._fermer_lot("fin_de_session")
 
     def on_session_switch(self, new_session_id: str, *, parent_session_id: str = "", reset: bool = False,
                           rewound: bool = False, **kwargs) -> None:
         self._session = new_session_id or self._session
-        if reset:
+        if reset and self._ferme_en_fin_de_session():
             self._fermer_lot("nouvelle_session")
+
+    def _ferme_en_fin_de_session(self) -> bool:
+        """docs/18 §11 : avec `fermer_lot_fin_de_session: false`, une fin de session ne ferme plus le lot — il continue de
+        se remplir et se ferme à `seuil_lot_tokens` ou chaque nuit (le cron de 23h55) : une consolidation par lot de
+        10 000 tokens, ou une par jour. L'écriture du brut et la consolidation restent indépendantes."""
+        return bool((getattr(self, "_reglages", None) or {}).get("fermer_lot_fin_de_session", True))
 
     def shutdown(self) -> None:
         fil = self._fil_consolidation

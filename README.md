@@ -108,13 +108,32 @@ conversations were used for diagnosis — reported as such.
 *S* setting and our judge is gpt-4o-mini; scores published by memory vendors use larger models and are, for most of
 them, reported by their own authors.
 
+## Which model consolidates — a small model is enough
+
+Consolidation (turning the raw log into cited facts) is the only step that calls a model. Bench 17 compares
+consolidators on six real days of the author's agent memory that no prompt was tuned on, same questions, reader and
+judge (`docs/17`, `docs/20`):
+
+| six unseen days | correct answers | coverage of the user's messages | cost per million raw tokens |
+|---|---|---|---|
+| GPT-6 Astra, production prompt (reference) | 65.3 % | 84.1 % | ≈ $42 |
+| GPT-6.1 Terra, adapted prompt | 73.4 % | 85.2 % | ≈ $3.3 |
+| **GPT-6 Luna, effort low, prompt written for it, 10,000-token lots** | **75.8 %** | 83.5 % | **≈ $0.46** |
+| Claude Haiku 5.5, same prompt, effort low | 71.8 % | 89.6 % | ≈ $1.5 |
+
+What made the difference was the prompt (one absolute rule — every name and number word for word from the cited lines —
+and working message by message), then small lots; the same prompt transfers from one lab to the other. Showing the model
+only the pages the search brings back, message by message, keeps the cost independent of the memory's size (`docs/19`),
+and the memory forgets what it no longer uses, under explicit conditions (`docs/18`).
+
 ## Repository layout
 
 ```
 plugin/exia_seed/   the plugin (consolidation, graph, sparse engine, retrieval, recall, language masks)
-tests/              21 test suites, each run in a disposable container with Hermès' real plugin loader
+tests/              27 test suites, each run in a disposable container with Hermès' real plugin loader
 banc/               the benchmarks: LoCoMo, LongMemEval, real-memory benches (scripts only, no private data)
-docs/               the engineering log, step by step (French) — decisions, measurements, mistakes
+docs/               the engineering log, step by step (French up to docs/17, English from docs/18) — decisions,
+                    measurements, mistakes
 ```
 
 Run the tests: `sh tests/banc.sh` (Docker; uses the Hermès image). Benchmark scripts and their exact protocols are in

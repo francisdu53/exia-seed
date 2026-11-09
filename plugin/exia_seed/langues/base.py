@@ -34,6 +34,12 @@ class Masque:
     semaine_derniere: Optional[str] = None
     motif_jour_passe: str = r"(?!)"      # regex, {jour} remplacé : « lundi dernier », « last Monday »
     jour_nu_passe: bool = False          # un jour cité seul peut-il désigner le passé ? (fr : non — règle de Francis)
+    # docs/18 §10 — le calcul des dates par le code (`temps.proposer`) ; vides : la règle ne s'applique pas
+    motif_ordinal: str = ""              # après le jour du mois : « 1er » (fr), « 1st » (en)
+    motif_aujourdhui: str = r"(?!)"      # « aujourd'hui », « ce soir » → le jour même
+    motif_decalage: str = r"(?!)"        # « dans 3 jours » : groupes (nombre, unité)
+    mot_semaine: str = ""                # l'unité qui vaut 7 jours dans motif_decalage
+    motif_heure: str = r"(?!)"           # « 16 h 15 », « à 18 heures » : groupes (heure, minutes)
     prefixe_echeance: str = ""
 
     # ── consignes de mémoire (consignes.py) ────────────────────────────────
@@ -70,6 +76,11 @@ class Masque:
         """Variante écrite pour un petit modèle (docs/17 §10-11), conversation utilisateur + assistant seulement.
         Une langue qui n'en a pas encore garde la consigne de production : rien n'est traduit sans être mesuré."""
         return self.consigne_consolidation(True, exemple_locuteur)
+
+    def consigne_consolidation_petit_modele(self, exemple_locuteur: str) -> str:
+        """Variante qualifiée pour un petit modèle (docs/20). Une langue qui n'en a pas encore garde la variante adaptée
+        (et, à défaut, la consigne de production)."""
+        return self.consigne_consolidation_adaptee(exemple_locuteur)
 
     def consigne_personnes(self, utilisateur: str, slug: str) -> str:
         """Précision ajoutée quand l'utilisateur est connu (une personne + un agent)."""

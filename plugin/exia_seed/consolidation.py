@@ -97,10 +97,11 @@ def _racine(mot: str) -> str:
 class Consolidateur:
     def __init__(self, racine: Path, tz, appel_llm: AppelLLM, *, modele: str = "",
                  max_tokens_entree: int = 40000, nom_agent: str = "assistant", nom_utilisateur: str = "",
-                 interlocuteurs=(), fiches: bool = True, consigne: str = "production"):
+                 interlocuteurs=(), fiches: bool = True, consigne: str = "production", observateur_k: int = 0):
         self.racine = racine
         self.fiches = fiches
         self.consigne = consigne                       # « production » ou « adaptee » (docs/17 §11 ; avec un agent seulement)
+        self.observateur_k = int(observateur_k or 0)   # docs/17 §18 : 0 = observateur éteint
         self.tz = tz
         self.appel_llm = appel_llm
         self.modele = modele or "inconnu"
@@ -195,12 +196,22 @@ class Consolidateur:
             return {"statut": "vide", "lots": lots}
 
         existantes = _pages.lister(self.dossier_pages)
+        obs = None
+        if self.observateur_k:                         # docs/17 §18 : la liste ciblée OBSERVÉE ; rien ne change pour le modèle
+            try:
+                from . import observateur as _obs
+                obs = _obs.selection(self.racine, blocs, [p.entete.get("node") for p in existantes],
+                                     implicites=(self.nom_utilisateur, self.nom_agent), k=self.observateur_k)
+            except Exception as e:
+                obs = {"erreur": f"{type(e).__name__}: {e}"[:200]}
         catalogue = "\n".join(
             f"- {p.entete.get('node')} ({p.entete.get('node_type')}) : "
             + ", ".join(a for l in (p.entete.get("aliases") or {}).values() for a in (l or []))
             for p in existantes) or self.masque.textes["aucun"]
         locuteur = self.nom_utilisateur or (self.interlocuteurs[0].lower() if self.interlocuteurs else "")
-        if self.consigne == "adaptee" and self.nom_agent:
+        if self.consigne == "petit_modele" and self.nom_agent:             # docs/20 : Luna, Haiku 5.5
+            systeme = self.masque.consigne_consolidation_petit_modele(locuteur)
+        elif self.consigne == "adaptee" and self.nom_agent:
             systeme = self.masque.consigne_consolidation_adaptee(locuteur)
         else:
             systeme = self.masque.consigne_consolidation(avec_agent=bool(self.nom_agent), exemple_locuteur=locuteur)
@@ -327,6 +338,16 @@ class Consolidateur:
             graphe_resume = {"statut": "echec", "erreur": f"{type(e).__name__}: {e}"[:200]}
         self._chainer_pages(lot_id, now)
         git = self._git_commit(f"consolidation {lot_id} — {len(acceptes)} faits, {len(creees)} nouveaux nœuds")
+        if obs is not None:                            # docs/17 §18 : ce que le modèle a fait, comparé à la sélection
+            try:
+                from . import observateur as _obs
+                ligne = obs if "erreur" in obs else _obs.bilan(obs, [p.entete.get("node") for p in existantes], acceptes,
+                                                                creees, implicites=(self.nom_utilisateur, self.nom_agent))
+                (self.racine / "telemetrie").mkdir(parents=True, exist_ok=True)
+                ajouter_ligne_jsonl(self.racine / "telemetrie" / "catalogue_observateur.jsonl",
+                                    {"ts": now.isoformat(timespec="seconds"), "lot": lot_id, **ligne})
+            except Exception:
+                pass
         rapport = self._journaliser_passage(now, lots, notes, acceptes, rejetes, creees, tokens_entree,
                                             estimer_tokens(reponse or ""), t0, statut="ok", git=git,
                                             dates_retirees=dates_retirees, graphe=graphe_resume, fiches=rapport_fiches)

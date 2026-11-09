@@ -32,7 +32,7 @@ PILOTE = ("conv-26", "conv-30")      # §5 : rapportées à part ; les chiffres 
 CAT5_GOLD = "Not mentioned"          # comme EXIA GHOST (eval_locomo.py)
 MODELE = os.environ.get("LOCOMO_MODELE", "gpt-4o-mini")
 # Prix en $ par million de tokens (entrée, entrée en cache, sortie) — À VÉRIFIER le jour du lancement (§7)
-PRIX = {"gpt-4o-mini": (0.15, 0.075, 0.60), "gpt-4.1-mini": (0.40, 0.10, 1.60)}
+PRIX = {"gpt-4o-mini": (0.15, 0.075, 0.60), "gpt-4.1-mini": (0.40, 0.10, 1.60), "gpt-6.1-terra": (1.0, 0.05, 5.0), "gpt-6-luna": (0.10, 0.01, 0.50)}
 PLAFOND_USD = float(os.environ.get("LOCOMO_PLAFOND_USD", "20"))   # arrêt local, sous le plafond fixé chez OpenAI
 # Interlocuteurs « implicites » (comme l'utilisateur chez Nexa : leur nom n'allume rien). DÉFAUT DU BANC trouvé le 18/10
 # (docs/09 §14.5) : dans LoCoMo, celui qui pose la question n'est AUCUN des deux interlocuteurs — « What did Caroline… »

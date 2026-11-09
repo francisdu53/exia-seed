@@ -34,16 +34,24 @@ case "$ETAPE" in
       docker run --rm -u 0 -e TZ=Europe/Paris ${FACTICE:+-e BANC_FACTICE=1} ${PLAFOND:+-e BANC_PLAFOND_USD=$PLAFOND} \
         ${SORTIE_MAX:+-e BANC_SORTIE_MAX=$SORTIE_MAX} ${NOUVEL_ESSAI:+-e BANC_NOUVEL_ESSAI=1} \
         ${CONSIGNE:+-e BANC_CONSIGNE=$CONSIGNE} ${EFFORT:+-e BANC_EFFORT=$EFFORT} ${PANEL:+-e BANC_PANEL=$PANEL} \
+        ${CATALOGUE:+-e BANC_CATALOGUE=$CATALOGUE} ${CIBLE_MAX:+-e BANC_CIBLE_MAX=$CIBLE_MAX} ${DEPART:+-e BANC_DEPART=$DEPART} ${BUDGET:+-e BANC_BUDGET=$BUDGET} ${FORMAT:+-e BANC_FORMAT=$FORMAT} ${RAPPEL:+-e BANC_RAPPEL=$RAPPEL} \
         -v $HOTE:/banc -v $ICI:/code:ro -v $HOME/banc-locomo/.cle-openai:/cle-openai:ro -v <exia-ghost>/.env:/cles/ghost.env:ro \
         --entrypoint /opt/hermes/.venv/bin/python3 $IMG /code/consolider.py "$M" "$R" 2>&1 | grep -v -E "WARNING|warn\("
       chown -R 10000:10000 $HOTE
     fi;;
   mesurer)
     docker run --rm -u 0 -e TZ=Europe/Paris ${FACTICE:+-e BANC_FACTICE=1} ${PLAFOND:+-e BANC_PLAFOND_USD=$PLAFOND} \
-      -e LOCOMO_BANC=/banc -e LOCOMO_RUN=mesures-17 ${MESURES:+-e BANC_MESURES=$MESURES} ${PASSAGES:+-e BANC_PASSAGES=$PASSAGES} ${PASSAGES_REF:+-e BANC_PASSAGES_REF=$PASSAGES_REF} ${PANEL:+-e BANC_PANEL=$PANEL} \
+      -e LOCOMO_BANC=/banc -e LOCOMO_RUN=mesures-17 ${DEPART:+-e BANC_DEPART=$DEPART} ${MESURES:+-e BANC_MESURES=$MESURES} ${PASSAGES:+-e BANC_PASSAGES=$PASSAGES} ${PASSAGES_REF:+-e BANC_PASSAGES_REF=$PASSAGES_REF} ${PANEL:+-e BANC_PANEL=$PANEL} \
       -v $HOTE:/banc -v $ICI:/code:ro -v $ICI/../locomo:/locomo:ro -v $ICI/../longmemeval:/lme:ro \
       -v $HOME/banc-locomo/.cle-openai:/cle-openai:ro -v <exia-ghost>/.env:/cles/ghost.env:ro \
       --entrypoint /opt/hermes/.venv/bin/python3 $IMG /code/mesurer.py "$@" 2>&1 | grep -v -E "WARNING|warn\("
+    chown -R 10000:10000 $HOTE;;
+  comparer)
+    docker run --rm -u 0 -e TZ=Europe/Paris ${PLAFOND:+-e BANC_PLAFOND_USD=$PLAFOND} \
+      -e LOCOMO_BANC=/banc -e LOCOMO_RUN=mesures-17 \
+      -v $HOTE:/banc -v $ICI:/code:ro -v $ICI/../locomo:/locomo:ro -v $ICI/../longmemeval:/lme:ro \
+      -v $HOME/banc-locomo/.cle-openai:/cle-openai:ro -v <exia-ghost>/.env:/cles/ghost.env:ro \
+      --entrypoint /opt/hermes/.venv/bin/python3 $IMG /code/comparer_catalogue.py 2>&1 | grep -v -E "WARNING|warn\("
     chown -R 10000:10000 $HOTE;;
   *) echo "étape inconnue : $ETAPE"; exit 1;;
 esac

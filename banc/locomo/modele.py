@@ -98,8 +98,12 @@ def appeler(messages: List[Dict[str, str]], role: str, modele: str = MODELE, max
 
 def _api(messages, modele, max_tokens, json_seul=False):
     cle = Path(os.environ.get("LOCOMO_CLE", str(BANC / ".cle-openai"))).read_text().strip()
-    corps = json.dumps({"model": modele, "messages": messages, "temperature": 0, "max_tokens": max_tokens,
-                        **({"response_format": {"type": "json_object"}} if json_seul else {})}).encode()
+    if modele.startswith("gpt-6"):            # docs/17 §14 : modèles à raisonnement — effort, pas de température
+        corps = {"model": modele, "messages": messages, "max_completion_tokens": max_tokens,
+                 "reasoning_effort": os.environ.get("LOCOMO_EFFORT", "low")}
+    else:
+        corps = {"model": modele, "messages": messages, "temperature": 0, "max_tokens": max_tokens}
+    corps = json.dumps({**corps, **({"response_format": {"type": "json_object"}} if json_seul else {})}).encode()
     attente = 2.0
     for essai in range(8):
         req = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=corps, method="POST",

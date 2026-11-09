@@ -9,6 +9,7 @@ from typing import Any, Dict
 DEFAUTS: Dict[str, Any] = {
     "dossier": "memoire",          # relatif à HERMES_HOME
     "seuil_lot_tokens": 25000,     # §3.1 : un lot se ferme à ce volume, ou au changement de jour
+    "fermer_lot_fin_de_session": True,   # docs/18 §11 : False = le lot continue d'une session à l'autre ; il se ferme à seuil_lot_tokens ou chaque nuit (cron)
     "fuseau": "",                  # vide = `timezone` de config.yaml, sinon UTC
     "nom_utilisateur": "",         # vide = nom fourni par la plateforme (Telegram…)
     "nom_agent": "assistant",
@@ -18,7 +19,8 @@ DEFAUTS: Dict[str, Any] = {
     "consolidation_auto": True,    # consolider dès qu'un lot se ferme (fil d'arrière-plan)
     "consolidation_effort": "low", # tâche mécanique : effort au plancher
     "consolidation_modele": "",    # docs/17 §11 : vide = le modèle principal de l'agent ; ex. « gpt-6.1-terra »
-    "consolidation_consigne": "production",  # « production » ou « adaptee » (masque de langue ; avec un agent seulement)
+    "consolidation_consigne": "production",  # « production », « adaptee » (Terra, docs/17 §11) ou « petit_modele » (Luna, Haiku 5.5, docs/20)
+    "catalogue_observateur_k": 0,   # docs/17 §18 : > 0 = observer la liste ciblée (k pages par message) ; 0 = éteint
     "consolidation_max_tokens_entree": 40000,
     "rappel_a_blanc": True,
     "fiches": True,                # docs/12 : fiche d'identité des pages touchées, à chaque consolidation        # étape 6a : calculer et journaliser le rappel, sans l'injecter

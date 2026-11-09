@@ -1,0 +1,3 @@
+<rappel>
+Avant de répondre : parcours la conversation du premier au dernier message de l'utilisateur ; vérifie que chaque message qui porte un détail concret est cité par au moins un fragment ; retire de chaque "fait" tout nom ou nombre absent des lignes citées ; n'écris aucun fragment fondé seulement sur ce que l'assistant a dit. Réponds uniquement par l'objet JSON.
+</rappel>

@@ -50,6 +50,11 @@ the a an of to in on at for and or is are was be it this that with by from as"""
     semaine_derniere = None
     motif_jour_passe = r"\b{jour}\s+dernier\b"
     jour_nu_passe = False            # règle de Francis (23/09) : « lundi » = le PROCHAIN lundi
+    motif_ordinal = r"(?:er)?"
+    motif_aujourdhui = r"\baujourd.?hui\b|\bce (?:soir|matin)\b|\bcet apr[eè]s-midi\b|\bcette nuit\b"
+    motif_decalage = r"\bdans\s+(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|dix|quinze)\s+(jours?|semaines?)\b"
+    mot_semaine = "semaine"
+    motif_heure = r"\b(\d{1,2})\s*(?:h|heures?)\s*(\d{2})?\b"
     prefixe_echeance = "échéance :"
 
     re_retrait_precedent = re.compile(
@@ -128,6 +133,9 @@ the a an of to in on at for and or is are was be it this that with by from as"""
 
     def consigne_consolidation_adaptee(self, exemple_locuteur: str) -> str:
         return _CONSIGNE_ADAPTEE.replace("{LOCUTEUR}", exemple_locuteur or "marie")
+
+    def consigne_consolidation_petit_modele(self, exemple_locuteur: str) -> str:
+        return _CONSIGNE_PETIT_MODELE.replace("{LOCUTEUR}", exemple_locuteur or "marie")
 
     def consigne_consolidation(self, avec_agent: bool, exemple_locuteur: str) -> str:
         return _CONSIGNE.replace("{REGLE_4}", self._REGLE_4_AGENT if avec_agent else self._REGLE_4_PERSONNES) \
@@ -295,3 +303,21 @@ Réponds UNIQUEMENT par un objet JSON : {"fiches": {"<noeud>": {"fiche": "<phras
 
 # Règle 3 jusqu'au 27/10/2026 (« utile plus tard ») — gardée pour les bancs de comparaison (docs/13 §14, §19).
 REGLE3_SELECTIVE = '3. Ne retiens que ce qui sera UTILE PLUS TARD : personnes, entreprises, lieux, tarifs, règles de travail, préférences, décisions et leur raison, événements marquants, échéances, intentions. Ignore salutations, bavardage, questions sans réponse.'
+
+
+# docs/20 §4 (08/11/2026) : la consigne qualifiée pour un petit modèle (GPT-6 Luna, Claude Haiku 5.5) — la consigne
+# adaptée, plus une RÈGLE ABSOLUE (noms et nombres mot pour mot ; ni la date de la conversation ni le nom du sujet
+# dans le fait) et le travail message par message. Identique au caractère près à banc/modeles/consigne_luna.txt.
+_REGLES_PETIT_MODELE = """RÈGLE ABSOLUE, À VÉRIFIER POUR CHAQUE FRAGMENT AVANT DE L'ÉCRIRE
+Chaque nom propre et chaque nombre écrit dans "fait" doit figurer MOT POUR MOT dans les lignes citées dans "src". Sinon, retire-le du fait. Un fragment qui enfreint cette règle est rejeté et perdu.
+- N'écris pas le nom du sujet s'il n'est pas dans la ligne citée : il est déjà donné par "noeud". La ligne dit « l'application calcule le solde » : écris « L'application calcule le solde. », pas « Budgeo calcule le solde. ».
+- N'écris jamais la date de la conversation dans "fait" (ni le jour, ni le mois) : le système l'ajoute. La date d'un événement va seulement dans "event_time".
+- N'ajoute aucun nom tiré du catalogue des nœuds, de la mémoire ou de tes connaissances : seulement ce qui est écrit dans les lignes citées.
+
+TRAVAILLE MESSAGE PAR MESSAGE, DANS L'ORDRE, JUSQU'AU DERNIER
+- Parcours les messages de l'utilisateur un par un, du premier au dernier, sans en sauter. Le milieu et la fin de la conversation comptent autant que le début.
+- Un message COURT compte autant qu'un long : « ok, fais-le pour jeudi », « le devis est validé », « mets 450 euros » portent une décision, une date ou un nombre. Écris-en le fragment.
+- Avant de répondre, vérifie que chaque message de l'utilisateur qui porte un détail concret est cité par au moins un fragment.
+
+"""
+_CONSIGNE_PETIT_MODELE = _CONSIGNE_ADAPTEE.replace("MÉTHODE\n", _REGLES_PETIT_MODELE + "MÉTHODE\n", 1)

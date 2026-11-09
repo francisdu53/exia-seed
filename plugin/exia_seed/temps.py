@@ -96,6 +96,11 @@ def _mois_cites(bas: str, m=None) -> set:
     return sortie | {num for nom, num in m.mois_variantes.items() if re.search(rf"\b{nom}\b", bas)}
 
 
+def _mot_entier(mot: str, texte: str) -> bool:
+    """« hier » dans « je l'ai vu hier », pas dans « fichier » (défaut trouvé le 08/11/2026)."""
+    return re.search(rf"(?<![\w-]){re.escape(mot)}(?![\w-])", texte) is not None
+
+
 def prochain(ancre: date, jour_semaine: int) -> date:
     """Le prochain `jour_semaine` STRICTEMENT après `ancre` (dit un lundi, « lundi » = +7)."""
     return ancre + timedelta(days=((jour_semaine - ancre.weekday()) % 7) or 7)
@@ -124,15 +129,15 @@ def _date_justifiee(d: date, cite: str, ancre: date, m=None) -> bool:
                 return True
     # 3. Les mots relatifs
     for mot, decalage in m.relatifs:
-        if mot in bas:
+        if _mot_entier(mot, bas):                        # 08/11/2026 : « hier » était trouvé dans « fichier »
             if d == ancre + timedelta(days=decalage):
                 return True
-            bas = bas.replace(mot, " ")                 # « après-demain » ne vaut pas « demain »
-    if m.semaine_prochaine and m.semaine_prochaine in bas:
+            bas = re.sub(rf"(?<![\w-]){re.escape(mot)}(?![\w-])", " ", bas)   # « après-demain » ne vaut pas « demain »
+    if m.semaine_prochaine and _mot_entier(m.semaine_prochaine, bas):
         lundi = prochain(ancre, 0)
         if lundi <= d <= lundi + timedelta(days=6):
             return True
-    if m.semaine_derniere and m.semaine_derniere in bas:
+    if m.semaine_derniere and _mot_entier(m.semaine_derniere, bas):
         lundi = ancre - timedelta(days=ancre.weekday() + 7)          # lundi de la semaine précédente
         if lundi <= d <= lundi + timedelta(days=6):
             return True
@@ -177,3 +182,61 @@ def suffixe(fait: str, valeur: Optional[str], prefixe: str = "→", m=None) -> s
             and str(d.year) in _nombres(bas, m):
         return ""
     return f" ({prefixe} {m.date_suffixe(d, heure)})"
+
+
+def proposer(cite: str, ancre: Optional[date], m=None) -> Tuple[Optional[str], str]:
+    """La date d'un événement CALCULÉE par le code (docs/18 §10), sans modèle : le calendrier et l'ancre (le jour où
+    la phrase a été dite). Rend (« AAAA-MM-JJ » ou « AAAA-MM-JJTHH:MM », règle) ; (None, raison) si la ligne ne porte
+    aucune date, ou plusieurs dates différentes (le cas est laissé au modèle). Mêmes règles que `_date_justifiee`,
+    dans l'autre sens : celle-ci vérifie une date proposée, celle-là la calcule."""
+    m = _m(m)
+    if ancre is None:
+        return None, "ancre inconnue"
+    texte = " ".join(sans_horodatage(l) for l in (cite or "").split("\n"))
+    bas = re.sub(r"(?:^|\s)\[\d\d:\d\d [^\]]*\]", " ", texte).lower()
+    trouvees = {}
+    # 1. Date écrite : « 12/03 », « 12/03/2027 », « 12 mars », « 12 mars 2027 »
+    for j, mo, a in re.findall(r"(?<![\w.,])(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?(?![\w.,%/])", bas):
+        try:
+            an = int(a) + (2000 if a and len(a) == 2 else 0) if a else ancre.year
+            d = date(an, int(mo), int(j))
+            if not a and d < ancre - timedelta(days=180):
+                d = date(an + 1, int(mo), int(j))
+            trouvees[d] = "date_ecrite"
+        except ValueError:
+            pass
+    for i, nom in enumerate(m.mois):
+        for j, a in re.findall(rf"\b(\d{{1,2}}){m.motif_ordinal}\s+{nom}(?:\s+(\d{{4}}))?\b", bas):
+            try:
+                d = date(int(a) if a else ancre.year, i + 1, int(j))
+                if not a and d < ancre - timedelta(days=180):
+                    d = date(ancre.year + 1, i + 1, int(j))
+                trouvees[d] = "date_ecrite"
+            except ValueError:
+                pass
+    # 2. Mots relatifs (« après-demain » avant « demain »)
+    reste = bas
+    for mot, decalage in m.relatifs:
+        if _mot_entier(mot, reste):
+            trouvees[ancre + timedelta(days=decalage)] = "relatif"
+            reste = re.sub(rf"(?<![\w-]){re.escape(mot)}(?![\w-])", " ", reste)
+    if re.search(m.motif_aujourdhui, reste):
+        trouvees[ancre] = "aujourd_hui"
+    # 3. Jour de semaine : le prochain de ce nom, le précédent s'il est dit « dernier »
+    for i, nom in enumerate(m.jours):
+        if re.search(rf"\b{nom}\b", reste):
+            passe = m.jour_nu_passe or re.search(m.motif_jour_passe.format(jour=nom), reste)
+            trouvees[precedent(ancre, i) if passe else prochain(ancre, i)] = "jour_semaine"
+    # 4. un décalage (« dans 3 jours », motif du masque)
+    for n, unite in re.findall(m.motif_decalage, reste):
+        k = int(n) if n.isdigit() else int(m.nombres_lettres.get(n, 1))
+        trouvees[ancre + timedelta(days=k * (7 if m.mot_semaine and unite.startswith(m.mot_semaine) else 1))] = "decalage"
+    if not trouvees:
+        return None, "aucune date"
+    if len(trouvees) > 1:
+        return None, "plusieurs dates : laissé au modèle"
+    d, regle = next(iter(trouvees.items()))
+    h = re.search(m.motif_heure, bas)
+    if h and 0 <= int(h.group(1)) <= 23:
+        return f"{d.isoformat()}T{int(h.group(1)):02d}:{h.group(2) or '00'}", regle
+    return d.isoformat(), regle

@@ -39,6 +39,7 @@ JOURS = tuple(json.loads((BANC / f"{os.environ.get('BANC_PANEL', 'jours')}.json"
 PROFIL = {j: {"C": "calme", "M": "moyen", "I": "intensif"}[j[0]] for j in JOURS}
 PASSAGES_REF = tuple(os.environ.get("BANC_PASSAGES_REF", "r1,r2").split(","))
 REFERENCE = "gpt-6-astra"
+DEPART = os.environ.get("BANC_DEPART", "depart")           # §22
 MAINTENANT = datetime(2026, 11, 5, 12, 0)
 ENTETE = re.compile(r"^\[(\d\d:\d\d) ([a-z_]+)\] ?(.*)$")
 FAIT = re.compile(r"^- (.*?) <!-- (.*?) -->\s*$")
@@ -101,7 +102,7 @@ def questions():
         return json.loads(f.read_text(encoding="utf-8"))
     qs = []
     for etiq in JOURS:
-        for m in [m for m in messages_utilisateur(BANC / "depart" / etiq / "memoire") if detail(m[3])]:
+        for m in [m for m in messages_utilisateur(BANC / "depart" / etiq / "memoire") if detail(m[3])]:   # mêmes questions pour tous
             rep = appel.appeler([{"role": "user", "content":
                   "Voici un message que Francis a envoyé à son assistante Nexa :\n« " + m[3][:1500] + " »\n\n"
                   "Écris UNE question que Francis pourrait poser à Nexa plusieurs semaines plus tard pour vérifier qu'elle "
@@ -171,8 +172,9 @@ def main():
             for etiq in JOURS:
                 mem = RUNS / m / rr / etiq / "memoire"
                 fini = json.loads((mem.parent / "fini.json").read_text(encoding="utf-8"))
-                avant, apres = faits_de(BANC / "depart" / etiq / "memoire"), faits_de(mem)
-                msgs = messages_utilisateur(BANC / "depart" / etiq / "memoire")
+                dep = BANC / ("depart" if m == REFERENCE else DEPART) / etiq / "memoire"   # §22 : chaque passage avec SES lots
+                avant, apres = faits_de(dep), faits_de(mem)
+                msgs = messages_utilisateur(dep)
                 c = cites(apres)
                 couverts = sum(any((x[0], k) in c for k in range(x[1], x[2] + 1)) for x in msgs)
                 qj = [q for q in qs if q["jour"] == etiq]
@@ -220,7 +222,7 @@ def main():
     for m in res:
         nouveaux = []
         for etiq in JOURS:
-            mem = RUNS / m / passages(m)[0] / etiq / "memoire"; avant = faits_de(BANC / "depart" / etiq / "memoire")
+            mem = RUNS / m / passages(m)[0] / etiq / "memoire"; avant = faits_de(BANC / ("depart" if m == REFERENCE else DEPART) / etiq / "memoire")
             brut = {f.name: f.read_text(encoding="utf-8").splitlines() for f in (mem / "raw").glob("*.md")}
             for fait, (page, meta) in sorted(faits_de(mem).items()):
                 if fait in avant:

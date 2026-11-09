@@ -13,6 +13,7 @@ réponse jusqu'à 8 000, fiches (second appel), contrôle de citation inchangé.
 """
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -94,9 +95,88 @@ def fonction_api(modele: str, run: str):
     return appeler
 
 
+DEPART = os.environ.get("BANC_DEPART", "depart")           # §22 : depart-K = lots découpés à K tokens
+BUDGET = int(os.environ.get("BANC_BUDGET", "40000"))       # §22 : un passage ne prend pas plus de K tokens de brut
+CATALOGUE = os.environ.get("BANC_CATALOGUE", "complet")            # docs/17 §12 : « cible » = liste choisie par la FCM
+CIBLE_MAX = int(os.environ.get("BANC_CIBLE_MAX", "30"))
+IMPLICITES = ("francis", "nexa")
+_MSG = re.compile(r"^\[(raw/[^\]]+|registre:[^\]]+)\] ?(.*)$")
+
+
+def cibler(fn, racine: Path, journal: Path):
+    """La liste des nœuds existants réduite à ceux que la recherche fait remonter (docs/17 §12).
+
+    Seul ce que VOIT le modèle change : la résolution des alias (une page nommée par le modèle rejoint la page
+    existante) garde la liste complète, comme en production. Une recherche par message (en-tête et lignes de suite),
+    même cascade que `memoire_chercher` (nom, alias, mot, champ lexical, plein texte, puis propagation) ; les nœuds
+    touchés directement passent avant ceux de la propagation ; au plus CIBLE_MAX, plus l'utilisateur et l'agent."""
+    from exia_seed.rappel import Rappeleur
+    R = Rappeleur(racine)
+
+    def appeler(messages):
+        u = messages[-1]["content"]
+        if not u.startswith("NŒUDS EXISTANTS\n") or "\n\nCONCEPTS EXISTANTS\n" not in u:
+            return fn(messages)                                        # l'appel « fiches » : inchangé
+        tete, reste = u.split("\n\nCONCEPTS EXISTANTS\n", 1)
+        lignes = tete.split("\n")[1:]
+        sources = reste.split("\n\nSOURCES\n", 1)[-1]
+        textes, courant = [], ""
+        for l in sources.splitlines():
+            m = _MSG.match(l)
+            if not m:
+                continue
+            ref, t = m.groups()
+            if ref.startswith("registre:") or re.match(r"\[\d\d:\d\d ", t):
+                if courant: textes.append(courant)
+                courant = t
+            else:
+                courant += " " + t
+        if courant: textes.append(courant)
+        mem = R.memoire()
+        score = {}
+        if mem is not None:
+            for t in textes:
+                a = R.activer(mem, t)
+                for n, v in a["entrees"].items():
+                    score[n] = max(score.get(n, 0.0), 1.0 + v)         # touché directement : d'abord
+                for n, v in a["actives"].items():
+                    score[n] = max(score.get(n, 0.0), v)
+        noeud = lambda l: l[2:].split(" (", 1)[0]
+        presents = [noeud(l) for l in lignes if l.startswith("- ")]
+        classes = [n for n in sorted(score, key=score.get, reverse=True) if n in presents and n not in IMPLICITES]
+        garder = set(classes[:CIBLE_MAX]) | set(IMPLICITES)
+        gardees = [l for l in lignes if l.startswith("- ") and noeud(l) in garder] or ["(aucun)"]
+        ajouter = {"lignes_completes": len(presents), "lignes_gardees": len(gardees), "messages": len(textes), "candidats": len(classes),
+                   "car_complet": len(tete), "car_cible": len("\n".join(gardees)) + 17, "gardes": sorted(garder & set(presents))}
+        with journal.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(ajouter, ensure_ascii=False) + "\n")
+        return fn([*messages[:-1], {"role": "user", "content": "NŒUDS EXISTANTS\n" + "\n".join(gardees)
+                                    + "\n\nCONCEPTS EXISTANTS\n" + reste}])
+    return appeler
+
+
+FORMAT = os.environ.get("BANC_FORMAT", "")                  # §26 : « xml » = sections en balises (convention d'Anthropic)
+RAPPEL = (ICI / os.environ["BANC_RAPPEL"]).read_text(encoding="utf-8").strip() if os.environ.get("BANC_RAPPEL") else ""
+
+
+def en_xml(fn):
+    """La même matière, organisée à la manière d'Anthropic : chaque partie entre balises, la conversation en dernier,
+    puis un rappel des règles clés juste avant la réponse. La consigne système et le contrat de sortie ne changent pas."""
+    def appeler(messages):
+        u = messages[-1]["content"]
+        if not u.startswith("NŒUDS EXISTANTS\n") or "\n\nCONCEPTS EXISTANTS\n" not in u or "\n\nSOURCES\n" not in u:
+            return fn(messages)                                        # l'appel « fiches » : inchangé
+        noeuds, reste = u[len("NŒUDS EXISTANTS\n"):].split("\n\nCONCEPTS EXISTANTS\n", 1)
+        concepts, sources = reste.split("\n\nSOURCES\n", 1)
+        x = (f"<noeuds_existants>\n{noeuds}\n</noeuds_existants>\n\n<concepts_existants>\n{concepts}\n</concepts_existants>\n\n"
+             f"<conversation>\n{sources}\n</conversation>" + (f"\n\n{RAPPEL}" if RAPPEL else ""))
+        return fn([*messages[:-1], {"role": "user", "content": x}])
+    return appeler
+
+
 def main():
     modele, run = sys.argv[1], sys.argv[2]
-    fn = fonction_astra(run) if modele == "gpt-6-astra" and not appel.FACTICE else fonction_api(modele, run)
+    fn0 = fonction_astra(run) if modele == "gpt-6-astra" and not appel.FACTICE else fonction_api(modele, run)
     bilan = {}
     for etiq in JOURS:
         racine = RUNS / modele / run / etiq / "memoire"
@@ -104,8 +184,11 @@ def main():
             bilan[etiq] = json.loads((racine.parent / "fini.json").read_text(encoding="utf-8")); continue
         if racine.exists():
             shutil.rmtree(racine)
-        shutil.copytree(BANC / "depart" / etiq / "memoire", racine)
-        cons = Consolidateur(racine, ZoneInfo("Europe/Paris"), fn, modele=modele, max_tokens_entree=40000,
+        shutil.copytree(BANC / DEPART / etiq / "memoire", racine)
+        (racine.parent / "cible.jsonl").unlink(missing_ok=True)
+        fn = cibler(fn0, racine, racine.parent / "cible.jsonl") if CATALOGUE == "cible" else fn0
+        fn = en_xml(fn) if FORMAT == "xml" else fn
+        cons = Consolidateur(racine, ZoneInfo("Europe/Paris"), fn, modele=modele, max_tokens_entree=BUDGET,
                              nom_agent="nexa", nom_utilisateur="francis", fiches=True)
         passages, bloques, t0 = [], 0, time.monotonic()
         while cons.lots_en_attente() or cons.registre.en_attente():
