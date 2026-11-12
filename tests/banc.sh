@@ -33,9 +33,20 @@ memory:
 CFG
   chown -R 10000:10000 "$D"
   echo "════ $t"
+  # 12/11/2026 : la sortie passait dans `| grep -v … || echec=1` — le code lu était celui de grep, jamais celui de la
+  # suite : une suite en échec laissait `exit 0`. Désormais le code de la SUITE est lu directement, ET sa ligne de
+  # bilan, car six suites (A1, A2, étape 3, étape 4, phase 1, revue) sortent en 0 même quand un contrôle échoue.
+  J=$(mktemp /tmp/banc-exia-seed-journal.XXXXXX)
   docker run --rm --network none -u 10000:10000 -e HERMES_HOME=/opt/data -e TZ=Europe/Paris \
     -v "$D":/opt/data -v "$TESTS":/tests:ro -w /opt/data --entrypoint /opt/hermes/.venv/bin/python3 \
-    "$IMG" "/tests/$t" 2>&1 | grep -v -E "WARNING|warn\(" || echec=1
+    "$IMG" "/tests/$t" > "$J" 2>&1
+  code=$?
+  grep -v -E "WARNING|warn\(" "$J"
+  ko=$(grep -E "[0-9]+ réussis" "$J" | tail -n 1 | sed -n 's/.*réussis[^0-9]*\([0-9][0-9]*\) échoué.*/\1/p')
+  if [ "$code" -ne 0 ] || [ "$ko" != "0" ]; then
+    echec=1; echo "  → ÉCHEC de $t (code $code, échoués : ${ko:-bilan absent})"
+  fi
+  rm -f "$J"
   rm -rf "$D"
 done
 exit $echec
