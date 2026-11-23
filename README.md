@@ -78,9 +78,39 @@ The value of a memory shows over months of a real relationship, not in a benchma
   consolidation rule, on copies: 422 → 732 facts, 54 % → 71 % of the user's messages cited by at least one fact,
   **22 → 36 correct answers out of 80** questions drawn from her real messages (16 gained / 2 lost, McNemar p = 0.001).
 
+## 0.10.0 — two memories, one web
+
+Is consolidation necessary, or can recall read the raw conversation? Both, it turns out. Since 0.10.0 the automatic
+recall can read **the consolidated memories and the raw log together** (`rappel_moteur: deux_memoires`; the default
+stays `ancien`, so installing it changes nothing, and switching back is the rollback). Each memory and each raw turn
+gets the sum of its cues in log-odds — rarity, coverage of the message, named page or person, concept, time window —
+with weights fitted on benchmark tuning sets only; the two lists are merged, at most 10 items reach the agent, with an
+**abstention rule** on top of the block and the agent's own past words marked as such. No model at recall time, no
+embeddings (`docs/22`).
+
+Evaluated on LoCoMo and LongMemEval with sealed tuning / test / verdict sets and a free evidence sensor, on fused
+memories, with the same 450-token block for every engine (reader GPT-6.1 Terra « high », judge Terra « low » —
+**not comparable to public leaderboards**):
+
+| verdict sets, fused memory | LoCoMo (796 q) | LongMemEval (450 q) | recall latency | RAM |
+|---|---|---|---|---|
+| **two memories (0.10.0)** | **63.1 %** | **58.9 %** | 5–30 ms | ≈ 350 MB |
+| hybrid RAG on raw turns (BM25 + bge-m3) | 58.2 % | 23.1 % | ≈ 300 ms | 2.5–2.9 GB |
+| bge-m3 on the consolidated memories | 49.4 % | 54.9 % | ≈ 300 ms | ≈ 2.4 GB |
+| the watch (0.9.16) | 43.0 % | 48.2 % | 3–11 ms | 70–150 MB |
+
+Two memories vs hybrid RAG on LoCoMo: p = 0.001; vs embeddings on LongMemEval: not significant. With the abstention
+rule, the questions built as traps are answered « not mentioned » 140 times out of 164 (12 without it), at a cost of
+about 6 points on ordinary LoCoMo questions. A corrector drawn from the memory itself absorbs typos (50 % misspelt
+words: 63.3 → 77.7 % evidence recall on LoCoMo). **Not solved**: interference as one person's memory grows — the
+evidence reaches the block for 93.6 % of the questions with one conversation in memory, 69.1 % with 500; two candidate
+fixes were rejected on the test set. 0.10.0 is **not yet switched on** for the agent: its real-life validation comes
+first.
+
 ## Benchmarks — as defect magnifiers, with their limits
 
-Benchmarks are useful to find defects and to compare retrieval engines on equal footing. Each protocol below was
+Benchmarks are useful to find defects and to compare retrieval engines on equal footing. (The section above uses the
+protocol of `docs/22`; the results below, from `docs/09` and `docs/13`, use another reader and judge.) Each protocol below was
 **written before the measurement** (hypotheses and thresholds included) and every result is reported, including the
 failures. Engines compared on the **same consolidated memory**: A = EXIA SEED, B = bge-m3 embeddings, C = BM25.
 
@@ -130,8 +160,8 @@ and the memory forgets what it no longer uses, under explicit conditions (`docs/
 
 ```
 plugin/exia_seed/   the plugin (consolidation, graph, sparse engine, retrieval, recall, language masks)
-tests/              27 test suites, each run in a disposable container with Hermès' real plugin loader
-banc/               the benchmarks: LoCoMo, LongMemEval, real-memory benches (scripts only, no private data)
+tests/              34 test suites, each run in a disposable container with Hermès' real plugin loader
+banc/               the benchmarks: LoCoMo, LongMemEval, real-memory benches, banc/eval (docs/22) — scripts only, no private data
 docs/               the engineering log, step by step (French up to docs/17, English from docs/18) — decisions,
                     measurements, mistakes
 ```
@@ -145,7 +175,8 @@ Run the tests: `sh tests/banc.sh` (Docker; uses the Hermès image). Benchmark sc
   output) a small model writes too few facts. Retrieval needs no model at all.
 - Validated on conversational memory, in French and English; not yet on sensor, mission or maintenance logs.
 - Python; the sparse engine is O(nodes + edges) but has not been measured beyond a few thousand subjects.
-- The documentation is in French.
+- The engineering log is in French up to `docs/17`, in English from `docs/18`.
+- Recall degrades as one person's memory grows (`docs/22`): forgetting (`docs/18`) is meant to bound it, not yet measured.
 
 ## Lineage and credits
 
