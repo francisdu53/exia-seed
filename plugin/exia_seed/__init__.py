@@ -33,6 +33,11 @@ logger = logging.getLogger(__name__)
 # Seule une session « principale » écrit : un cron, un sous-agent ou une passe de nettoyage ne
 # sont pas une conversation avec l'utilisateur (spec §3.1 — périmètre du brut).
 _CONTEXTES_ECRIVAINS = {None, "", "primary"}
+# 15/11/2026 : Hermès 0.21.3 lance ses crons avec la mémoire chargée et `agent_context="primary"` (scheduler.py,
+# agent_init.py) — seule la plateforme dit « cron ». Sans ce filtre, la séance d'un cron serait écrite au brut au nom
+# de l'utilisateur (« francis »), consigne du cron comprise. Un cron qui repère une information durable la note au
+# registre ; une conversation venue d'un autre canal entre par `outils/canal.py`, sous le nom de son auteur.
+_PLATEFORMES_SANS_BRUT = {"cron"}
 
 
 def _hermes_home() -> Path:
@@ -73,9 +78,11 @@ class ExiaSeedProvider(MemoryProvider):
         self._registre: Optional[Registre] = None
         self._fil_consolidation = None
         self._reglages: Dict[str, Any] = {}
+        self._consolidation_en_pause = False
         self._racine: Optional[Path] = None
         self._session = ""
         self._contexte: Optional[str] = None
+        self._plateforme = ""
         self._compteurs = self._compteurs_vides()
 
     # ── contrat obligatoire ────────────────────────────────────────────────
@@ -88,16 +95,27 @@ class ExiaSeedProvider(MemoryProvider):
 
     def initialize(self, session_id: str, **kwargs) -> None:
         try:
-            self._reglages = _config.charger()
+            # A1 (15/11/2026) : les réglages sont VÉRIFIÉS. Une valeur fausse ne met plus la mémoire en retrait :
+            # écriture → dernière valeur valide de la mémoire (le brut continue) ; consolidation → en pause ;
+            # chaque cas laisse un code défaut dans telemetrie/defauts.jsonl. Seule une mémoire NEUVE aux
+            # réglages d'écriture faux n'est pas créée (reglages.MemoireNonCreee).
+            from . import reglages as _reglages
+            reg, codes, invalides = _config.charger_avec_codes()
             home = Path(kwargs.get("hermes_home") or _hermes_home())
-            self._racine = home / self._reglages["dossier"]
-            # La langue est une propriété de la mémoire (docs/10) : inscrite à sa création, et une
-            # configuration qui demanderait une autre langue sur une mémoire existante est REFUSÉE.
+            if "dossier" in invalides:
+                from . import codes_defauts
+                codes_defauts.inscrire(None, "ES-CFG-07", "dossier", "mémoire introuvable : dossier invalide")
+                raise _reglages.MemoireNonCreee("dossier invalide")
+            self._racine = home / reg["dossier"]
+            self._reglages, self._consolidation_en_pause = _reglages.appliquer(self._racine, reg, codes, invalides)
+            # La langue est une propriété de la mémoire (docs/10) : inscrite à sa création ; une configuration
+            # qui en demande une autre ne la change pas (code ES-CFG-03, la langue de la mémoire est gardée).
             from . import langues
             self._masque = langues.fixer(self._racine, self._reglages["langue"])
             self._contexte = kwargs.get("agent_context")
+            self._plateforme = str(kwargs.get("platform") or "")
             self._session = session_id or ""
-            self._actif = self._contexte in _CONTEXTES_ECRIVAINS
+            self._actif = self._contexte in _CONTEXTES_ECRIVAINS and self._plateforme not in _PLATEFORMES_SANS_BRUT
             # Le registre accepte toutes les sessions : un cron qui repère une information
             # durable (un email de client) doit pouvoir la noter. Seul le brut est réservé à la
             # conversation principale.
@@ -115,11 +133,11 @@ class ExiaSeedProvider(MemoryProvider):
             implicites = (self._reglages.get("nom_utilisateur"), self._reglages.get("nom_agent"),
                           *(self._reglages.get("interlocuteurs") or ()))
             partage = Rappeleur(self._racine, implicites=implicites)      # un seul cache pour tous
-            self._lecteur = Lecteur(self._racine, rappeleur=partage)      # outils : tous contextes, lecture seule
+            self._lecteur = Lecteur(self._racine, rappeleur=partage, poids_sujet=self._reglages.get("recherche_poids_sujet", 0.25))      # outils : tous contextes, lecture seule
             self._rappeleur = partage if (self._actif and (self._reglages.get("rappel_a_blanc", True)
                                                             or int(self._reglages.get("phase") or 1) >= 2)) else None
-            logger.info("EXIA SEED phase %s : contexte=%s écriture=%s racine=%s",
-                        self._reglages.get("phase"), self._contexte, self._actif, self._racine)
+            logger.info("EXIA SEED phase %s : contexte=%s plateforme=%s écriture=%s racine=%s",
+                        self._reglages.get("phase"), self._contexte, self._plateforme or "?", self._actif, self._racine)
         except Exception:
             self._actif = False
             logger.exception("EXIA SEED : initialisation impossible — mémoire en retrait")
@@ -215,11 +233,16 @@ class ExiaSeedProvider(MemoryProvider):
             self._brut.ecrire_tour(session_id or self._session, _etiquette(qui, self._masque),
                                    user_content or "", assistant_content or "")
             self._compteurs["tours_ecrits"] += 1
+            retrait = bool(self._brut.retraits)
             for champ in ("tours_non_conserves", "retraits"):
                 valeur = getattr(self._brut, champ)
                 if valeur:
                     self._compteurs[champ] += valeur
                     setattr(self._brut, champ, 0)
+            # 14/11/2026 : les faits déjà consolidés de ces lignes sont retirés tout de suite (outil de consolidation, sous
+            # son verrou) — réglage `retrait_retroactif`, éteint par défaut tant que Francis n'a pas tranché l'oubli (15/11)
+            if retrait and self._reglages.get("retrait_retroactif"):
+                self._lancer_consolidation()
             if self._brut.secrets_masques:
                 self._compteurs["secrets_masques"] += self._brut.secrets_masques
                 self._brut.secrets_masques = 0
@@ -235,6 +258,9 @@ class ExiaSeedProvider(MemoryProvider):
             ms = (time.perf_counter() - t0) * 1000
             self._compteurs["ecriture_ms_total"] += ms
             self._compteurs["ecriture_ms_max"] = max(self._compteurs["ecriture_ms_max"], ms)
+            # 14/11/2026 : écrits à CHAQUE tour. Ils ne l'étaient qu'à la fermeture d'un lot en fin de session ; avec
+            # `fermer_lot_fin_de_session: false` (09/11), plus rien ne les écrivait avant l'arrêt de la passerelle.
+            self._persister_compteurs()
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
         # Tout échange est déjà écrit par sync_turn : ici, on pose seulement un repère.
@@ -273,6 +299,8 @@ class ExiaSeedProvider(MemoryProvider):
         réponse de l'agent. Si une consolidation tourne déjà, le lot attendra la suivante."""
         if not self._reglages.get("consolidation_auto", True):
             return
+        if getattr(self, "_consolidation_en_pause", False):       # A1 : un réglage de consolidation est faux
+            return                                                # (code ES-CFG-05 inscrit) ; le brut attend
         if self._fil_consolidation is not None and self._fil_consolidation.is_alive():
             return
         self._fil_consolidation = spawn_context_thread(self._consolider, name="exia-seed-consolidation")
@@ -364,6 +392,10 @@ class ExiaSeedProvider(MemoryProvider):
         ≈ 0,5 s juste après une consolidation (cache reconstruit). Toujours journalisé, comme le rappel à blanc.
         Une panne rend "" : Nexa répond sans souvenirs, jamais sans réponse (D8)."""
         instant = maintenant(fuseau(self._reglages["fuseau"]))
+        if self._reglages.get("rappel_moteur", "ancien") == "montre":
+            return self._souvenirs_montre(r, query, texte, instant)
+        if self._reglages.get("rappel_moteur", "ancien") == "deux_memoires":
+            return self._souvenirs_deux_memoires(r, query, texte, instant)
         try:
             from .rappel import souvenirs
             res = r.rappeler(texte or query, instant.replace(tzinfo=None), amorce=self._amorce_du(instant))
@@ -381,6 +413,84 @@ class ExiaSeedProvider(MemoryProvider):
             logger.warning("EXIA SEED : souvenirs en échec (%s) — Nexa répond sans eux", e)
             try:
                 r.journaliser(query, {"statut": "echec", "erreur": f"{type(e).__name__}: {e}"[:200]}, instant)
+            except Exception:
+                pass
+            return ""
+
+    def _souvenirs_montre(self, r, query: str, texte: str, instant) -> str:
+        """0.9.16 (docs/21) — le rappel « montre » : les souvenirs s'allument eux-mêmes, chacun a sa note (cab_pull ↑/↓),
+        on garde ceux qui ont au moins une chance sur cinq d'être utiles (au plus 10), chacun avec sa raison.
+        Continuité : rien de ce qui a été donné dans les 3 dernières heures (Hermès le rejoue encore) ; le message
+        précédent (< 30 min) aide un message trop court. Une panne rend "" (D8), comme l'ancien moteur."""
+        from datetime import timedelta
+        from .montre import Montre
+        try:
+            m = r.memoire()
+            if m is None:
+                return ""
+            if getattr(self, "_montre", None) is None or self._montre.r is not r:
+                self._montre, self._montre_donnes, self._montre_prec = Montre(r), [], None
+            ici = instant.replace(tzinfo=None)
+            self._montre_donnes = [(t, x) for t, x in self._montre_donnes if ici - t <= timedelta(hours=3)]
+            deja_textes = {x for _, xs in self._montre_donnes for x in xs}
+            deja = {i for i, f in enumerate(m.faits) if f["texte"] in deja_textes} if deja_textes else set()
+            prec = self._montre_prec[1] if self._montre_prec and ici - self._montre_prec[0] <= timedelta(minutes=30) else ""
+            x = self._montre.rappeler(texte or query, ici, deja=deja, precedent=prec)
+            self._montre_prec = (ici, texte or query)
+            donnes = [m.faits[i]["texte"] for i in x["faits"]]
+            self._montre_donnes.append((ici, donnes))
+            res = {"statut": "ok", "moteur": "montre", "candidats": x.get("candidats", 0),
+                   "faits": [{"page": m.faits[i]["fichier"], "fait": m.faits[i]["texte"], "note": n, "raison": rz}
+                             for i, n, rz in zip(x["faits"], x.get("notes", []), x.get("raisons", []))],
+                   "latence_ms": {"total": x.get("latence_ms", 0.0)},
+                   "injecte": {"sujets": sorted({m.faits[i]["noeud"] for i in x["faits"]}), "faits": len(x["faits"]),
+                               "tokens": x.get("tokens", 0)}}
+            try:
+                r.journaliser(query, res, instant)
+            except Exception:
+                pass
+            return x["bloc"]
+        except Exception as e:
+            logger.warning("EXIA SEED : montre en échec (%s) — Nexa répond sans souvenirs", e)
+            try:
+                r.journaliser(query, {"statut": "echec", "moteur": "montre", "erreur": f"{type(e).__name__}: {e}"[:200]}, instant)
+            except Exception:
+                pass
+            return ""
+
+    def _souvenirs_deux_memoires(self, r, query: str, texte: str, instant) -> str:
+        """0.10.0 (docs/22) — « deux mémoires, une toile » : les souvenirs consolidés ET le brut (avant les 3 dernières
+        heures, jamais les lignes retirées), réunis par log-cote ; règle d'abstention en tête ; les phrases de l'agent
+        marquées. Rien de ce qui a été donné dans les 3 dernières heures. Une panne rend "" (D8)."""
+        from .deux_memoires import DeuxMemoires
+        try:
+            if getattr(self, "_deux", None) is None or self._deux.r is not r:
+                self._deux = DeuxMemoires(
+                    r, self._racine,
+                    implicites=(self._reglages.get("nom_utilisateur"), self._reglages.get("nom_agent"),
+                                *(self._reglages.get("interlocuteurs") or ())),
+                    agent=_etiquette(self._reglages["nom_agent"], self._masque),
+                    options={"seuil": float(self._reglages.get("deux_memoires_seuil", 0.05)),
+                             "max": int(self._reglages.get("deux_memoires_max", 10)),
+                             "regle": bool(self._reglages.get("deux_memoires_regle", True)),
+                             "correcteur": bool(self._reglages.get("deux_memoires_correcteur", True))})
+            x = self._deux.rappeler(texte or query, instant.replace(tzinfo=None))
+            res = {"statut": "ok", "moteur": "deux_memoires", "candidats": x["candidats"],
+                   "faits": [{"page": it.get("page", ""), "fait": it["texte"], "note": round(it["note"], 3)} if it["type"] == "fait"
+                             else {"brut": f"{it['src'][0]}:{it['src'][1]}", "fait": it["texte"], "note": round(it["note"], 3)}
+                             for it in x["items"]],
+                   "latence_ms": {"total": x["latence_ms"], **x.get("etapes_ms", {})}, "activite": x.get("actif", {}),
+                   "injecte": {"souvenirs": sum(1 for it in x["items"] if it["type"] == "fait"),
+                               "tours": sum(1 for it in x["items"] if it["type"] == "tour"), "tokens": x["tokens"]}}
+            try:
+                r.journaliser(query, res, instant)
+            except Exception:
+                pass
+            return x["bloc"]
+        except Exception as e:
+            logger.warning("EXIA SEED : deux mémoires en échec (%s) — l'agent répond sans souvenirs", e)
+            try:
+                r.journaliser(query, {"statut": "echec", "moteur": "deux_memoires", "erreur": f"{type(e).__name__}: {e}"[:200]}, instant)
             except Exception:
                 pass
             return ""

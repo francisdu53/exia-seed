@@ -1,6 +1,6 @@
 name: exia_seed
-version: 0.9.1
-description: "EXIA SEED — mémoire de Nexa : wiki markdown indexé par graphe associatif, sans vecteurs. 0.9.1 = masques de langue fr/en (0.9.0) + apports de la 0.8.1 (docs/11-12) : fiches d'identité, mots distinctifs, avis système, enveloppes, amorçage ; phase 2 (souvenirs qui remontent) codée, activée par `phase: 2`."
+version: 0.10.0
+description: "EXIA SEED — wiki markdown indexé par graphe associatif, sans vecteurs. 0.10.0 (23/11/2026) = rappel « deux mémoires » : souvenirs + brut (réglage rappel_moteur: deux_memoires, éteint par défaut) ; 0.9.5 (14/11/2026) = consolidation « 1 échange par lot » (réglage consolidation_par_echange) ; 0.9.4 = la même base de code pour le dépôt et pour Nexa : masques de langue fr/en, consolidation par petit modèle, lot journalier, cycle de vie (oubli non activé), bulletin de santé déterministe, compteurs écrits à chaque tour, poids du sujet réglable."
 # Informatif : Hermès n'utilise pas cette liste pour filtrer les appels (vérifié le 23/09/2026 dans
 # plugins/memory/__init__.py) — il appelle tout crochet implémenté par le fournisseur.
 hooks:

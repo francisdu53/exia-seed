@@ -224,6 +224,10 @@ class Rappeleur:
 
         Rend les mots pleins, la fonction de couverture, les nœuds d'entrée et leurs étages, les
         orphelins, les faits trouvés par le plein texte, et les nœuds actifs au-dessus du repos."""
+        memo = getattr(self, "_memo_activer", None)            # 0.9.16 : posé par le rappel par convergence, le temps d'un appel
+        cle = (id(m), texte, seul_texte, tuple(sorted(amorce.items())) if amorce else None)
+        if memo is not None and cle in memo:
+            return memo[cle]
         t0 = time.perf_counter()
         norm = _graphe._norm(texte)
         mots = norm.split()
@@ -314,14 +318,17 @@ class Rappeleur:
                 if d >= SEUIL_NOEUD:
                     actives[n] = d
         t_prop = time.perf_counter()
-        return {"pleins": pleins, "couverture": couverture, "poids": poids, "total": total,
-                "entrees": entrees, "etages": etages,
-                "orphelins": orphelins, "fts_scores": fts_scores, "actives": actives,
-                "t_cascade": t_cascade - t0, "t_prop": t_prop - t_cascade}
+        sortie = {"pleins": pleins, "couverture": couverture, "poids": poids, "total": total,
+                  "entrees": entrees, "etages": etages,
+                  "orphelins": orphelins, "fts_scores": fts_scores, "actives": actives,
+                  "t_cascade": t_cascade - t0, "t_prop": t_prop - t_cascade}
+        if memo is not None:
+            memo[cle] = sortie
+        return sortie
 
     # ── le rappel ────────────────────────────────────────────────────────
     def rappeler(self, message: str, maintenant: Optional[datetime] = None, mode: str = "complet",
-                 amorce: Optional[Dict[str, float]] = None) -> Dict:
+                 amorce: Optional[Dict[str, float]] = None, seuil: Optional[float] = None) -> Dict:
         """`mode="plein_texte"` : le même rappel, graphe coupé — seuls les faits trouvés par le plein
         texte, notés par leur seul lexique. C'est le concurrent B du banc 6b : la différence entre
         les deux modes mesure exactement ce qu'apporte le graphe."""
@@ -360,7 +367,7 @@ class Rappeleur:
                 if n in m.implicites and lex == 0:
                     continue    # la fiche de l'utilisateur est liée à tout : sans écho du message, rien
                 score = cab_pull(min(1.0, d / d_ref), 1.0, lex)
-                if score >= SEUIL_FAIT:
+                if score >= (SEUIL_FAIT if seuil is None else seuil):     # 0.9.16 : la voie plein texte du rappel par convergence passe 0
                     recence = meta.get("event_time") or f["dit_le"] or ""
                     candidats.append((score, meta.get("protected") == "true", recence,
                                       float(meta.get("conf") or 0), i))

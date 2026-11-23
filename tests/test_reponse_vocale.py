@@ -50,7 +50,10 @@ verif("la réponse vocale est écrite en clair au nom de l'agent", "nexa] (vocal
       brut[brut.find("## "):][:300])
 verif("le marqueur n'est plus dans le brut", "audio_as_voice" not in brut and "MEDIA:" not in brut)
 verif("la réponse écrite suivante est intacte", "nexa] Avec plaisir." in brut)
-verif("compteur reponses_vocales = 1", p._compteurs.get("reponses_vocales") == 1, str(p._compteurs.get("reponses_vocales")))
+# 14/11/2026 : les compteurs sont écrits sur disque à chaque tour (telemetrie/<jour>.json), puis remis à zéro en mémoire
+ecrits = sum(json.loads(f.read_text(encoding="utf-8")).get("reponses_vocales", 0) for f in (M / "telemetrie").glob("20*.json"))
+verif("compteur reponses_vocales = 1 (écrit sur disque au tour même)", ecrits + p._compteurs.get("reponses_vocales", 0) == 1 and ecrits == 1,
+      f"disque {ecrits}, mémoire {p._compteurs.get('reponses_vocales')}")
 
 print(f"\n{ok} réussis, {ko} échoués")
 sys.exit(1 if ko else 0)

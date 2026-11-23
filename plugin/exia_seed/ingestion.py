@@ -89,18 +89,8 @@ class Brut:
         consigne = None if avis is not None else detecter(texte_utilisateur, self.masque)
         with verrou(self._verrou):
             now = maintenant(self.tz)
-            jour = now.date().isoformat()
             ajout = estimer_tokens(texte_utilisateur) + estimer_tokens(texte_agent)
-            etat = lire_json(self._etat_chemin, {})
-            if etat:
-                if etat.get("jour") != jour:
-                    self._fermer(etat, "changement_de_jour")
-                    etat = {}
-                elif etat.get("tokens", 0) > 0 and etat["tokens"] + ajout > self.seuil:
-                    self._fermer(etat, "seuil_atteint")
-                    etat = {}
-            if not etat:
-                etat = self._ouvrir(jour, session_id, now)
+            etat = self._lot_courant(now, ajout, session_id)
             heure = now.strftime("%H:%M")
             fichier_courant = self.dossier / etat["fichier"]
             # Consignes qui visent le tour PRÉCÉDENT (« oublie ce que je viens de dire », ou
@@ -150,6 +140,26 @@ class Brut:
             ecrire_json(self._etat_chemin, etat)
             return len(lignes)
 
+    def ecrire_ligne(self, session_id: str, qui: str, texte: str) -> int:
+        """Une ligne venue d'un AUTRE canal que la conversation (`outils/canal.py`, 15/11/2026), écrite au nom de `qui`.
+
+        Ni avis système, ni consigne : « oublie ce que je viens de dire », cité dans un message du canal, n'efface rien.
+        Le dernier tour suivi (`.dernier_tour.json`) n'est pas touché : un retrait demandé ensuite par l'utilisateur
+        vise toujours SON dernier message, jamais une ligne du canal arrivée entre-temps."""
+        texte, n = masquer((texte or "").strip())
+        self.secrets_masques += n
+        if not texte:
+            return 0
+        ajout = estimer_tokens(texte)
+        with verrou(self._verrou):
+            now = maintenant(self.tz)
+            etat = self._lot_courant(now, ajout, session_id)
+            with open(self.dossier / etat["fichier"], "a", encoding="utf-8") as f:
+                f.write(f"[{now.strftime('%H:%M')} {qui}] {texte}\n")
+            etat["tokens"] = etat.get("tokens", 0) + ajout
+            ecrire_json(self._etat_chemin, etat)
+            return 1
+
     def marquer(self, texte: str) -> None:
         """Repère non conversationnel (compression, reprise…) — commentaire HTML, ignoré à la lecture."""
         with verrou(self._verrou):
@@ -168,6 +178,21 @@ class Brut:
         return lire_json(self._etat_chemin, {})
 
     # ── interne ─────────────────────────────────────────────────────────────
+    def _lot_courant(self, now, ajout: int, session_id: str) -> Dict:
+        """Le lot où écrire, SOUS LE VERROU : l'ouvert est fermé si le jour a changé ou si `ajout` dépasse le seuil."""
+        jour = now.date().isoformat()
+        etat = lire_json(self._etat_chemin, {})
+        if etat:
+            if etat.get("jour") != jour:
+                self._fermer(etat, "changement_de_jour")
+                etat = {}
+            elif etat.get("tokens", 0) > 0 and etat["tokens"] + ajout > self.seuil:
+                self._fermer(etat, "seuil_atteint")
+                etat = {}
+        if not etat:
+            etat = self._ouvrir(jour, session_id, now)
+        return etat
+
     def _ouvrir(self, jour: str, session_id: str, now) -> Dict:
         # Premier numéro libre, ouvert OU fermé : compter les fichiers ne suffit pas si l'un
         # d'eux a été déplacé à la main — l'ouverture en mode « x » échouerait et le tour serait

@@ -217,7 +217,9 @@ SUSPECTS = re.compile(r"\b(lundi|mardi|demain|hier|semaine|janvier|février|util
 SUSPECTS_CASSE = re.compile(r"\b(Sémantique|Épisodique|Semantic|Episodic|NŒUDS|Monday)\b")
 # Exceptions déclarées (docs/10 §4) : messages pour l'opérateur (journal technique, commits git, alertes du graphe)
 # et l'outil de rattrapage des concepts, qui ne sert qu'aux mémoires françaises antérieures à la 0.7.
-EXCEPTIONS = {"outils/concepts.py"}
+# 14/11/2026 : le bulletin de santé (outils/bulletin.py) est un message à l'opérateur, en français chez Nexa ; à porter
+# dans les masques le jour où un service bilingue l'enverra à ses clients.
+EXCEPTIONS = {"outils/concepts.py", "outils/bulletin.py"}
 racine_plugin = Path(importlib.import_module(base).__file__).parent
 trouves = []
 for f in sorted(racine_plugin.glob("*.py")) + sorted((racine_plugin / "outils").glob("*.py")):

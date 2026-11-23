@@ -51,6 +51,7 @@ class Masque:
     sections_page: List[Tuple[str, str]] = []
     sections_lecture: List[Tuple[str, str]] = []
     textes: Dict[str, str] = {}
+    fenetre: Dict = {}               # 0.10.0 : vocabulaire de la fenêtre de temps du rappel « deux mémoires » (docs/22)
 
     def __init__(self) -> None:
         alternatives = list(self.composes) + sorted(self.nombres_lettres, key=len, reverse=True)
@@ -92,6 +93,11 @@ class Masque:
 
     def consigne_interlocuteurs(self, noms: List[str]) -> str:
         """Précision ajoutée quand la conversation est entre personnes, sans agent."""
+        raise NotImplementedError
+
+    def consigne_autres_interlocuteurs(self, autres: List[Tuple[str, str]], utilisateur: str, agent: str) -> str:
+        """Précision ajoutée quand un AUTRE interlocuteur que l'utilisateur et l'agent parle dans les lignes du passage
+        (canal d'échange, outils/canal.py, 15/11/2026) : [(nom dans le brut, description)]."""
         raise NotImplementedError
 
     def schemas_outils(self, utilisateur: str) -> Dict[str, Dict]:

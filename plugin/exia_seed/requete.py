@@ -70,9 +70,12 @@ def _fait(f: Dict, m=None) -> Dict:
 class Lecteur:
     """Les outils de requête. Un par plugin ; lecture seule ; partage le cache du rappel."""
 
-    def __init__(self, racine: Path, implicites=(), rappeleur: Optional[Rappeleur] = None):
+    def __init__(self, racine: Path, implicites=(), rappeleur: Optional[Rappeleur] = None, poids_sujet=...):
         self.racine = Path(racine)
         self.r = rappeleur or Rappeleur(racine, implicites=implicites)
+        # Réglage `recherche_poids_sujet` (14/11/2026) : 0,25 par défaut ; None = l'ancienne note ; « eventail ».
+        # Sans valeur (...) : la constante du module, lue à chaque recherche (les bancs la changent ainsi).
+        self.poids_sujet = poids_sujet
 
     def _journal(self, outil: str, entree: str, sortie: Dict, t0: float, maintenant: datetime) -> None:
         try:
@@ -155,10 +158,13 @@ class Lecteur:
 
         def note(c) -> float:
             couv = min(1.0, sum(poids[w] * v for w, v in c[3].items()) / total)
-            if POIDS_SUJET is None:
+            ps = POIDS_SUJET if self.poids_sujet is ... else self.poids_sujet
+            # « ancienne » = None (15/11/2026) : Hermès retire de config.yaml tout réglage à null quand il le réenregistre
+            # (hermes_cli/config.py, _strip_default_values) — le choix de Francis pour Nexa disparaissait sans bruit.
+            if ps is None or ps == "ancienne":
                 s = cab_pull(c[2], 1.0, couv)
             else:
-                lam = min(1.0, k_budget / max(1, len(m.par_noeud.get(c[0], ())))) if POIDS_SUJET == "eventail" else POIDS_SUJET
+                lam = min(1.0, k_budget / max(1, len(m.par_noeud.get(c[0], ())))) if ps == "eventail" else float(ps)
                 s = cab_pull(couv, 1.0, lam * c[2])
             if cible:
                 f = m.faits[c[1]]

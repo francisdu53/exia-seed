@@ -19,10 +19,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))          # …/plug
 from exia_seed import _etiquette, config as _config                     # noqa: E402
 from exia_seed.consolidation import Consolidateur, appel_llm_hermes, modele_principal  # noqa: E402
 from exia_seed.ingestion import Brut                                     # noqa: E402
+from exia_seed.reglages import MemoireNonCreee, appliquer as appliquer_reglages, groupe as groupe_reglage  # noqa: E402
 from exia_seed.util import fuseau, maintenant                            # noqa: E402
 
 
 PASSAGES_MAX = 40
+PASSAGES_MAX_ECHANGES = 400
 
 
 def main() -> int:
@@ -39,16 +41,34 @@ def main() -> int:
         setup_logging()
     except Exception:
         pass
-    reg = _config.charger()
-    tz = fuseau(reg["fuseau"])
+    # A1 (15/11/2026) : réglages vérifiés ; un réglage de consolidation faux met la consolidation EN PAUSE
+    # (le lot du jour se ferme quand même : le brut est en sécurité et attend le rattrapage).
+    reg, codes, invalides = _config.charger_avec_codes()
+    if "dossier" in invalides:
+        print(json.dumps({"statut": "en_pause", "code": "ES-CFG-07", "cles": ["dossier"]}, ensure_ascii=False))
+        return 0
     racine = Path(get_hermes_home()) / reg["dossier"]
+    try:
+        reg, en_pause = appliquer_reglages(racine, reg, codes, invalides)
+    except MemoireNonCreee:
+        print(json.dumps({"statut": "en_pause", "code": "ES-CFG-07", "cles": sorted(invalides)}, ensure_ascii=False))
+        return 0
+    tz = fuseau(reg["fuseau"])
     agent = _etiquette(reg["nom_agent"]) if reg.get("nom_agent") else ""       # vide : conversation sans agent
 
     brut = Brut(racine, reg["seuil_lot_tokens"], tz, agent, reg["langue"])
     ouvert = brut.lot_ouvert()
     if ouvert and (a.forcer or ouvert.get("jour") != maintenant(tz).date().isoformat()):
         brut.fermer("fin_de_journee")
+    if en_pause:
+        # Une anomalie s'imprime (le cron la livre) : l'administrateur est prévenu, rien n'est consolidé.
+        print(json.dumps({"statut": "en_pause", "code": "ES-CFG-05",
+                          "cles": sorted(c for c in invalides if groupe_reglage(c) == "consolidation")},
+                         ensure_ascii=False))
+        return 0
 
+    canal = reg.get("canal") or {}
+    annuaire = {_etiquette(canal["correspondant"]): str(canal.get("description") or "")} if canal.get("correspondant") else {}
     modele = reg.get("consolidation_modele") or ""                     # docs/17 §11 : vide = modèle principal
     cons = Consolidateur(racine, tz, appel_llm_hermes(reg["consolidation_effort"], modele=modele), modele=modele or modele_principal(),
                       max_tokens_entree=reg["consolidation_max_tokens_entree"], nom_agent=agent,
@@ -56,16 +76,24 @@ def main() -> int:
                       interlocuteurs=[_etiquette(n) for n in (reg.get("interlocuteurs") or ())],
                       fiches=bool(reg.get("fiches", True)),
                       consigne=reg.get("consolidation_consigne") or "production",
-                      observateur_k=int(reg.get("catalogue_observateur_k") or 0))
+                      observateur_k=int(reg.get("catalogue_observateur_k") or 0),
+                      par_echange=bool(reg.get("consolidation_par_echange")),
+                      retrait_retroactif=bool(reg.get("retrait_retroactif")), annuaire=annuaire)
     # docs/20 §10 : des passages de 10 000 tokens au plus — on enchaîne jusqu'à épuisement des lots, sans boucler
     # sur un lot qui échoue (garde-fou : PASSAGES_MAX)
     r, faits, passages = {"statut": "rien"}, 0, 0
-    while passages < PASSAGES_MAX:
-        avant = (list(cons.lots_en_attente()), len(cons.registre.en_attente()))
+    # « 1 échange par lot » : un passage par échange — une journée en compte 20 à 80 ; ce qui dépasse attend la nuit suivante
+    maximum = PASSAGES_MAX_ECHANGES if cons.par_echange else PASSAGES_MAX
+    def etat():
+        # l'avancement : lots et notes en attente, et (« 1 échange par lot ») les échanges déjà consolidés d'un lot
+        ech = cons._consolide_echanges
+        return (list(cons.lots_en_attente()), len(cons.registre.en_attente()), ech.stat().st_size if ech.exists() else 0)
+    while passages < maximum:
+        avant = etat()
         if not avant[0] and not avant[1] and passages:
             break
         r = cons.consolider(); passages += 1; faits += r.get("faits_retenus") or 0
-        if r.get("statut") not in ("ok", "vide") or (list(cons.lots_en_attente()), len(cons.registre.en_attente())) == avant:
+        if r.get("statut") not in ("ok", "vide") or etat() == avant:
             break
     r = {**r, "passages": passages, "faits_retenus_total": faits}
     if a.verbeux or r.get("statut") not in ("ok", "rien", "vide", "deja_en_cours"):

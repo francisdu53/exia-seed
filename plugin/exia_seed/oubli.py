@@ -123,10 +123,11 @@ def plan(pages: Iterable, aujourdhui: date, usages: Dict[str, date], implicites:
     return {"date": aujourdhui.isoformat(), "faits": total, "oublies": oublies, "epargnes_par_condition": epargnes}
 
 
-def appliquer(racine: Path, resultat: Dict, maintenant: Optional[datetime] = None) -> Dict:
+def appliquer(racine: Path, resultat: Dict, maintenant: Optional[datetime] = None, raison: str = "declin") -> Dict:
     """Retire les faits du plan de leurs pages ; une page sans faits est retirée. Chaque fait oublié est écrit dans
     `oublis/AAAA-MM.jsonl` (texte, métadonnées, page, date, force) : `restaurer` le remet. Le brut et git gardent la
-    trace. L'APPELANT tient le verrou (un seul écrivain) puis recalcule l'index et le graphe."""
+    trace. L'APPELANT tient le verrou (un seul écrivain) puis recalcule l'index et le graphe. `raison` : « declin »
+    (l'oubli sous conditions) ou « retrait » (l'utilisateur a demandé d'oublier, consolidation.py, 14/11/2026)."""
     import json
     from . import pages as _pages
     from .util import ajouter_ligne_jsonl
@@ -147,7 +148,7 @@ def appliquer(racine: Path, resultat: Dict, maintenant: Optional[datetime] = Non
                 m = _FAIT.match(l)
                 if m and m.group(1) in cibles:
                     ajouter_ligne_jsonl(journal, {"ts": quand, "page": p.chemin.name, "noeud": p.entete.get("node"),
-                                                  "section": cle, "ligne": l, "raison": "declin"})
+                                                  "section": cle, "ligne": l, "raison": raison})
                     retires += 1
                 else:
                     garder.append(l)

@@ -1,0 +1,23 @@
+{
+ "_origine": "docs/22 — logistic regression (IRLS, L2 = 1) fitted on the TUNING sets of LoCoMo and LongMemEval only, gold evidence turns as truth; seuil 0.05 chosen on Nexa's tuning messages (same volume as the watch).",
+ "souvenirs": {
+  "biais": -8.1844,
+  "bm25": 1.6935,
+  "couverture": 3.3948,
+  "nom": 0.7031,
+  "un_mot": 0.5739,
+  "concept": 1.7673,
+  "theme_absent": -0.3601,
+  "regle": -1.1036,
+  "temps_dans": 1.0473,
+  "temps_hors": -1.3626
+ },
+ "brut": {
+  "biais": -14.5206,
+  "bm25": 2.9996,
+  "couverture": 4.9195,
+  "locuteur": 1.6346,
+  "temps_dans": 0.9695,
+  "temps_hors": -1.3619
+ }
+}

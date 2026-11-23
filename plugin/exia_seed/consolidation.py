@@ -97,7 +97,8 @@ def _racine(mot: str) -> str:
 class Consolidateur:
     def __init__(self, racine: Path, tz, appel_llm: AppelLLM, *, modele: str = "",
                  max_tokens_entree: int = 40000, nom_agent: str = "assistant", nom_utilisateur: str = "",
-                 interlocuteurs=(), fiches: bool = True, consigne: str = "production", observateur_k: int = 0):
+                 interlocuteurs=(), fiches: bool = True, consigne: str = "production", observateur_k: int = 0,
+                 par_echange: bool = False, retrait_retroactif: bool = False, annuaire: Optional[Dict[str, str]] = None):
         self.racine = racine
         self.fiches = fiches
         self.consigne = consigne                       # « production » ou « adaptee » (docs/17 §11 ; avec un agent seulement)
@@ -117,6 +118,15 @@ class Consolidateur:
         self.dossier_pages = racine / "pages"
         self.registre = Registre(racine, tz)
         self._consolide = self.raw / ".consolide.jsonl"
+        # « 1 échange par lot » (docs/17 §28-§33, décision de Francis du 14/11/2026) : un appel au modèle par échange.
+        # Le brut n'est jamais découpé (sa chaîne d'intégrité le fige) : on note les lignes déjà consolidées de chaque
+        # lot, et le lot n'entre dans `.consolide.jsonl` que lorsque tous ses échanges le sont.
+        self.par_echange = bool(par_echange)
+        self._consolide_echanges = self.raw / ".consolide_echanges.jsonl"
+        self._retraits_appliques = self.raw / ".retraits_appliques.jsonl"
+        self.retrait_retroactif = bool(retrait_retroactif)   # 15/11/2026 : réglage, éteint par défaut
+        # 15/11/2026 : les AUTRES interlocuteurs (outils/canal.py) — nom dans le brut → qui c'est, pour la consolidation
+        self.annuaire = {str(k): str(v or "") for k, v in (annuaire or {}).items()}
         self._verrou = racine / ".verrou-consolidation"
 
     # ── ce qui attend ──────────────────────────────────────────────────────
@@ -146,17 +156,34 @@ class Consolidateur:
     def _consolider(self) -> Dict:
         t0 = time.monotonic()
         now = maintenant(self.tz)
+        retroactif = self._retirer_deja_consolides(now) if self.retrait_retroactif else {}
         lots_attente = self.lots_en_attente()
         notes = self.registre.en_attente()
+        echange = None                                 # « 1 échange par lot » : les lignes de l'échange de ce passage
+        if self.par_echange:
+            for f in lots_attente:
+                faites = self._lignes_faites(f)
+                echange = next((set(e) for e in self._echanges_de(f) if not set(e) <= faites), None)
+                if echange:
+                    lots_attente = [f]
+                    break
+                # tous ses échanges sont consolidés (ou il n'a aucune ligne de conversation) : le lot l'est
+                ajouter_ligne_jsonl(self._consolide, {"fichier": f, "lot": "echanges" if faites else "vide",
+                                                      "ts": now.isoformat(timespec="seconds")})
+            else:
+                lots_attente = []
         if not lots_attente and not notes:
-            return {"statut": "rien"}
+            return {"statut": "retrait", **retroactif} if retroactif else {"statut": "rien"}
 
         # 1. Sources, dans la limite du budget
         sources: Dict[str, Tuple[str, bool]] = {}      # réf → (texte, dit_par_agent)
         ancres: Dict[str, str] = {}                    # réf → moment où la ligne a été dite (R2)
+        locuteurs: Dict[str, str] = {}                 # réf → qui parle (l'en-tête du message), 15/11/2026
         blocs, lots, budget = [], [], self.max_tokens
         for f in lots_attente:
             lignes = self._lignes_de(f)
+            if echange is not None:
+                lignes = [(n, t) for n, t in lignes if n in echange]
             cout = sum(estimer_tokens(t) for _, t in lignes) + 50
             if lots and cout > budget:
                 break                                  # le reste au prochain passage
@@ -175,6 +202,9 @@ class Consolidateur:
                 # Sans agent (conversation entre personnes, docs/10) : personne n'est « l'agent ».
                 parleurs = "|".join(re.escape(x) for x in (self.nom_agent, QUI_AVIS) if x)
                 sources[ref] = (t, bool(re.match(rf"\[\d\d:\d\d (?:{parleurs})\]", entete_message or t)))
+                qui = re.match(r"\[\d\d:\d\d ([^\]\s]+)\]", entete_message or t)
+                if qui:
+                    locuteurs[ref] = qui.group(1)
                 if jour_lot:
                     ancres[ref] = _temps.dit_le(jour_lot, ouverture, entete_message or t)
                 blocs.append(f"[{ref}] {t}")
@@ -219,6 +249,14 @@ class Consolidateur:
             systeme += self.masque.consigne_personnes(self.nom_utilisateur, _pages.slug(self.nom_utilisateur))
         elif self.interlocuteurs:
             systeme += self.masque.consigne_interlocuteurs(self.interlocuteurs)
+        # 15/11/2026 : un AUTRE interlocuteur que l'utilisateur et l'agent parle dans ces lignes (canal d'échange,
+        # outils/canal.py). La consigne qualifiée ne connaît que l'utilisateur : sans ce paragraphe, ses paroles risquent
+        # d'être prêtées à l'utilisateur. Ajouté SEULEMENT dans ce cas : les passages ordinaires restent identiques.
+        autres = sorted({m.group(1) for t, _ in sources.values() for m in [re.match(r"\[\d\d:\d\d ([^\]\s]+)\]", t)] if m}
+                        - {self.nom_utilisateur, self.nom_agent, QUI_AVIS, ""})
+        if self.nom_utilisateur and autres:
+            systeme += self.masque.consigne_autres_interlocuteurs([(n, self.annuaire.get(n, "")) for n in autres],
+                                                                  self.nom_utilisateur, self.nom_agent)
         # B+ (docs/08 §8) : les concepts existants, avec le début de leur champ lexical, pour être réutilisés
         from . import graphe as _graphe
         thesaurus = _graphe.charger_thesaurus(self.racine)
@@ -275,12 +313,17 @@ class Consolidateur:
                 if r:
                     dates_retirees.append((frag["fait"][:120], r))
             fait = frag["fait"].rstrip(" .")
+            # 15/11/2026 : un fait qui ne cite qu'un AUTRE interlocuteur porte sa source dans son texte, par le code — le
+            # modèle l'omet parfois (« Francis a décidé… » dit par main_claude) et Nexa relirait l'information sans sa source
+            tiers = self._tiers(cles, locuteurs)
+            if tiers and _plat(tiers) not in _plat(fait):
+                fait = self.masque.textes["selon"].format(qui=tiers) + fait
             fait = (fait + _temps.suffixe(fait, quand, m=self.masque)
                     + (_temps.suffixe(fait, echeance, self.masque.prefixe_echeance, self.masque) if echeance and echeance != quand else "")
                     + ".")
             meta = {"conf": frag.get("conf"), "src": ",".join(frag["src"]), "dit_le": moment,
                     "event_time": quand, "echeance": echeance,
-                    "speaker": frag.get("speaker"),
+                    "speaker": tiers or frag.get("speaker"),
                     "privacy": frag.get("privacy") if frag.get("privacy") in ("personnel", "confidentiel") else None,
                     "protected": "true" if frag.get("protected") else None, "lot": lot_id}
             # B+ : 1 à 3 concepts, connus ou définis dans ce passage ; un concept sans définition est ignoré
@@ -317,7 +360,14 @@ class Consolidateur:
 
         # 4. Registres d'avancement, index, journal, intégrité
         for f in lots:
-            ajouter_ligne_jsonl(self._consolide, {"fichier": f, "lot": lot_id, "ts": now.isoformat(timespec="seconds")})
+            if echange is not None:
+                ajouter_ligne_jsonl(self._consolide_echanges, {"fichier": f, "lignes": [min(echange), max(echange)],
+                                                               "lot": lot_id, "ts": now.isoformat(timespec="seconds")})
+                faites = self._lignes_faites(f)
+                if all(set(e) <= faites for e in self._echanges_de(f)):
+                    ajouter_ligne_jsonl(self._consolide, {"fichier": f, "lot": lot_id, "ts": now.isoformat(timespec="seconds")})
+            else:
+                ajouter_ligne_jsonl(self._consolide, {"fichier": f, "lot": lot_id, "ts": now.isoformat(timespec="seconds")})
         for e in notes:
             self.registre.marquer_integre(e["id"], cites.get(e["id"], ""), lot_id)
         self._ecrire_index()
@@ -442,6 +492,86 @@ class Consolidateur:
                     o.group(1) if o else None)
         except ValueError:
             return None, None
+
+    def _tiers(self, cles, locuteurs: Dict[str, str]) -> Optional[str]:
+        """L'AUTRE interlocuteur qui a dit le fait (15/11/2026, canal d'échange) : quand les lignes citées, hors agent et
+        avis, sont toutes d'un même interlocuteur qui n'est pas l'utilisateur. Le fait est alors signé de son nom par le
+        code, quoi qu'ait écrit le modèle : ses paroles ne sont jamais prêtées à l'utilisateur. Sinon None (l'utilisateur
+        cité, registre) : le choix du modèle reste."""
+        tiers = {locuteurs.get(c) for c in cles} - {self.nom_agent, QUI_AVIS, None, ""}
+        if len(tiers) == 1 and self.nom_utilisateur and self.nom_utilisateur not in tiers:
+            return next(iter(tiers))
+        return None
+
+    def _retirer_deja_consolides(self, now) -> Dict:
+        """Retrait rétroactif (14/11/2026, défaut signalé par le Claude d'NAS) : « oublie ce que je viens de dire » ne
+        faisait qu'empêcher la consolidation FUTURE des lignes visées ; si leur lot était déjà consolidé (fermé au seuil,
+        ou juste avant le retrait), les faits restaient. Ici, sous le verrou de la consolidation (un seul écrivain), chaque
+        retrait nouveau retire les faits qui citent une de ses lignes — au registre `oublis/` (raison « retrait »,
+        `oubli.restaurer` les remet), le brut et git gardant la trace. Rend {} quand il n'y a rien à faire."""
+        chemin = self.raw / ".retraits.jsonl"
+        if not chemin.exists():
+            return {}
+        canon = lambda l: json.dumps(json.loads(l), ensure_ascii=False, sort_keys=True)
+        faits = set()
+        if self._retraits_appliques.exists():
+            faits = {canon(l) for l in self._retraits_appliques.read_text(encoding="utf-8").splitlines() if l.strip()}
+        nouveaux = [l for l in chemin.read_text(encoding="utf-8").splitlines() if l.strip() and canon(l) not in faits]
+        if not nouveaux:
+            return {}
+        vises: Dict[str, set] = {}
+        for l in nouveaux:
+            x = json.loads(l)
+            vises.setdefault(x["fichier"], set()).update(range(int(x["lignes"][0]), int(x["lignes"][1]) + 1))
+        from . import oubli as _oubli
+        cibles = []
+        for p in _pages.lister(self.dossier_pages):
+            for f in _oubli.faits_de(p):
+                for ref in str(f["meta"].get("src") or "").split(","):
+                    r = re.match(r"raw/([^:]+):(\d+)(?:-(\d+))?$", ref.strip())
+                    if r and vises.get(r.group(1), set()) & set(range(int(r.group(2)), int(r.group(3) or r.group(2)) + 1)):
+                        cibles.append({"page": p.chemin.name, "fait": f["fait"]}); break
+        resultat = {}
+        if cibles:
+            resultat = _oubli.appliquer(self.racine, {"oublies": cibles}, now, raison="retrait")
+            self._ecrire_index()
+            try:
+                from . import graphe as _graphe
+                _graphe.calculer(self.racine, implicites=(self.nom_utilisateur, self.nom_agent, *self.interlocuteurs))
+            except Exception:
+                pass                                   # recalculé au passage suivant
+            date, T = now.date().isoformat(), self.masque.textes
+            with open(self.racine / "log.md", "a", encoding="utf-8") as j:
+                j.write(T["log_retrait"].format(date=date, heure=now.strftime("%H:%M:%S"), faits=resultat["faits_retires"]))
+            self._git_commit(T["git_retrait"].format(date=date, faits=resultat["faits_retires"]))
+        with open(self._retraits_appliques, "a", encoding="utf-8") as j:
+            for l in nouveaux:
+                j.write(canon(l) + "\n")
+        return {"retraits": len(nouveaux), "faits_retires": resultat.get("faits_retires", 0)}
+
+    def _echanges_de(self, fichier: str) -> List[List[int]]:
+        """Les échanges d'un lot (numéros de ligne RÉELS) : un message de quelqu'un d'autre que l'agent ouvre un échange,
+        les messages de l'agent qui suivent en font partie ; des lignes en tête de lot, avant tout message d'un autre,
+        forment un échange à part. Le découpage du banc (banc/modeles/decouper.py, mode « echange »), lignes retirées
+        et repères exclus de la même façon (`_lignes_de`)."""
+        echanges = []
+        for n, t in self._lignes_de(fichier):
+            m = re.match(r"\[\d\d:\d\d ([a-z_]+)\]", t)
+            if not echanges or (m and m.group(1) != self.nom_agent):
+                echanges.append([])
+            echanges[-1].append(n)
+        return echanges
+
+    def _lignes_faites(self, fichier: str) -> set:
+        """Les lignes d'un lot déjà consolidées, échange par échange (`.consolide_echanges.jsonl`)."""
+        faites = set()
+        if self._consolide_echanges.exists():
+            for l in self._consolide_echanges.read_text(encoding="utf-8").splitlines():
+                if l.strip():
+                    x = json.loads(l)
+                    if x.get("fichier") == fichier:
+                        faites.update(range(int(x["lignes"][0]), int(x["lignes"][1]) + 1))
+        return faites
 
     def _lignes_de(self, fichier: str) -> List[Tuple[int, str]]:
         """Lignes de conversation d'un lot, avec leur numéro RÉEL dans le fichier (1-based).

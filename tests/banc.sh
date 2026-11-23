@@ -37,7 +37,9 @@ CFG
   # suite : une suite en échec laissait `exit 0`. Désormais le code de la SUITE est lu directement, ET sa ligne de
   # bilan, car six suites (A1, A2, étape 3, étape 4, phase 1, revue) sortent en 0 même quand un contrôle échoue.
   J=$(mktemp /tmp/banc-exia-seed-journal.XXXXXX)
-  docker run --rm --network none -u 10000:10000 -e HERMES_HOME=/opt/data -e TZ=Europe/Paris \
+  # 15/11/2026 : une suite `*_racine.py` tourne en root (elle fabrique des fichiers de propriétaires différents)
+  U=10000:10000; case "$t" in *_racine.py) U=0:0 ;; esac
+  docker run --rm --network none -u "$U" -e HERMES_HOME=/opt/data -e TZ=Europe/Paris \
     -v "$D":/opt/data -v "$TESTS":/tests:ro -w /opt/data --entrypoint /opt/hermes/.venv/bin/python3 \
     "$IMG" "/tests/$t" > "$J" 2>&1
   code=$?
