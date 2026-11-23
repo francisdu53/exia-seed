@@ -1,0 +1,13 @@
+{
+ "N3": {
+  "inhib": 0.5,
+  "sim_seuil": 0.5
+ },
+ "N4": {
+  "freres_ecart": -0.5,
+  "freres_parents": 3
+ },
+ "N5": {
+  "passages": 1
+ }
+}

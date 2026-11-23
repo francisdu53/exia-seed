@@ -1,0 +1,14 @@
+{
+ "biais": -8.1844,
+ "bm25": 1.6935,
+ "couverture": 3.3948,
+ "nom": 0.7031,
+ "un_mot": 0.5739,
+ "concept": 1.7673,
+ "theme_absent": -0.3601,
+ "regle": -1.1036,
+ "temps_dans": 1.0473,
+ "temps_hors": -1.3626,
+ "sens": 0.0,
+ "sens_couverture": 0.0
+}

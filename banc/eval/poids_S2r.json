@@ -1,0 +1,28 @@
+{
+ "fuite": 0.04725,
+ "voix": {
+  "nom": 0.302,
+  "un_mot": 0.0,
+  "mots": 0.007,
+  "bm25": 0.7095,
+  "fcm": 0.1004,
+  "notion": 0.037000000000000005,
+  "graphe": 0.0247,
+  "regle": 0.0,
+  "vecu": 0.0
+ },
+ "absences": {
+  "mots": 0.6108,
+  "notion": 0.0,
+  "fcm": 0.2064
+ },
+ "forces": {
+  "mots": "min(1, couverture / 0,3)",
+  "bm25": "1 / (1 + rang)",
+  "fcm": "relative à la FCM la plus allumée",
+  "notion": "1 si dite, sinon le lien le plus fort",
+  "graphe": "activation de la page / référence",
+  "vecu": "lien vécu le plus fort avec un souvenir ancré (page nommée, couverture ≥ 0,15 ou notion dite)"
+ },
+ "appris_sur": "2874 souvenirs jugés du banc (131 messages, 30/09-16/11)"
+}

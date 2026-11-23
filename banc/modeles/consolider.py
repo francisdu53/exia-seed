@@ -188,8 +188,31 @@ def main():
         (racine.parent / "cible.jsonl").unlink(missing_ok=True)
         fn = cibler(fn0, racine, racine.parent / "cible.jsonl") if CATALOGUE == "cible" else fn0
         fn = en_xml(fn) if FORMAT == "xml" else fn
+        if os.environ.get("BANC_CONTEXTE"):               # §29 : les échanges précédents, montrés mais NON citables
+            ctx_par_lot = {}
+            for l in (racine / "raw" / ".chaine.jsonl").read_text(encoding="utf-8").splitlines():
+                if l.strip():
+                    e = json.loads(l)
+                    if e.get("contexte"):
+                        ctx_par_lot[e["fichier"]] = e["contexte"]
+            def avec_contexte(messages, _fn=fn, _ctx=ctx_par_lot):
+                txt = messages[-1]["content"]
+                lots_ici = re.findall(r"── raw/(\S+) :", txt)
+                lignes = [x for f in lots_ici for x in _ctx.get(f, [])]
+                if lignes and "\nSOURCES\n" in txt:
+                    bloc = ("CONTEXTE — les échanges juste avant, DÉJÀ consolidés. Ils servent seulement à comprendre de qui "
+                            "et de quoi on parle. N'en tire AUCUN fait et ne les cite JAMAIS : tes faits ne citent que des "
+                            "lignes de SOURCES.\n" + "\n".join("› " + x for x in lignes) + "\n\n")
+                    txt = txt.replace("\nSOURCES\n", "\n" + bloc + "SOURCES\n", 1)
+                    messages = messages[:-1] + [{**messages[-1], "content": txt}]
+                    with open(racine.parent / "contexte.jsonl", "a", encoding="utf-8") as j:   # trace : ce qui a été montré
+                        j.write(json.dumps({"lots": lots_ici, "lignes_contexte": len(lignes), "debut": lignes[0][:60]}, ensure_ascii=False) + "\n")
+                return _fn(messages)
+            fn = avec_contexte
         cons = Consolidateur(racine, ZoneInfo("Europe/Paris"), fn, modele=modele, max_tokens_entree=BUDGET,
                              nom_agent="nexa", nom_utilisateur="francis", fiches=True)
+        if os.environ.get("BANC_UN_LOT"):                 # §28 : un seul lot (un échange) par appel au modèle
+            cons.max_tokens = 1
         passages, bloques, t0 = [], 0, time.monotonic()
         while cons.lots_en_attente() or cons.registre.en_attente():
             avant = (list(cons.lots_en_attente()), len(cons.registre.en_attente()))

@@ -91,8 +91,9 @@ def en_cache(modele: str, k: str) -> Optional[Dict]:
 def cout(modele: str, u: Dict) -> float:
     p_in, p_cache, p_out = PRIX[modele]
     hors_cache = max(0, u["entree"] - u["entree_cache"] - u.get("ecriture_cache", 0))
-    return (hors_cache * p_in + u["entree_cache"] * p_cache + u.get("ecriture_cache", 0) * p_in * 1.25
-            + u["sortie"] * p_out) / 1e6
+    remise = 0.5 if u.get("niveau") == "flex" else 1.0     # §31 : tarif Flex = moitié du Standard (page de prix OpenAI)
+    return remise * (hors_cache * p_in + u["entree_cache"] * p_cache + u.get("ecriture_cache", 0) * p_in * 1.25
+                     + u["sortie"] * p_out) / 1e6
 
 
 def journaliser(modele: str, role: str, k: str, texte: str, u: Dict, brut, duree: float, run: str, usd: Optional[float] = None) -> Dict:
@@ -141,6 +142,10 @@ def _cles_ghost() -> Dict[str, str]:
     return env
 
 
+class RefusFlex(Exception):
+    """§31 : refus du mode Flex (429, ressources indisponibles, non facturé) → repli immédiat en Standard."""
+
+
 def _post(url: str, corps: Dict, entetes: Dict) -> Dict:
     donnees = json.dumps(corps).encode()
     attente = 2.0
@@ -151,6 +156,8 @@ def _post(url: str, corps: Dict, entetes: Dict) -> Dict:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             corps_err = e.read().decode("utf-8", "replace")[:400]
+            if e.code == 429 and corps.get("service_tier") == "flex":
+                raise RefusFlex(corps_err)
             if e.code in (408, 409, 429) or e.code >= 500:
                 time.sleep(attente); attente = min(60, attente * 2); continue
             raise RuntimeError(f"HTTP {e.code} : {corps_err}")
@@ -163,9 +170,19 @@ def _openai(messages, modele, max_tokens, effort, json_seul):
     cle_api = Path(os.environ.get("BANC_CLE_OPENAI", "/cle-openai")).read_text().strip()
     corps = {"model": modele, "messages": messages, "max_completion_tokens": max_tokens, "reasoning_effort": effort,
              **({"response_format": {"type": "json_object"}} if json_seul else {})}
-    d = _post("https://api.openai.com/v1/chat/completions", corps, {"Authorization": f"Bearer {cle_api}"})
+    niveau = "standard"
+    if os.environ.get("BANC_FLEX") == "1":                 # §31 (décision de Francis, 12/11) : Flex, et au moindre
+        corps["service_tier"] = "flex"                     # refus on rejoue tout de suite en Standard, sans attendre
+        niveau = "flex"
+    try:
+        d = _post("https://api.openai.com/v1/chat/completions", corps, {"Authorization": f"Bearer {cle_api}"})
+    except RefusFlex:
+        corps.pop("service_tier", None); niveau = "standard_repli"
+        d = _post("https://api.openai.com/v1/chat/completions", corps, {"Authorization": f"Bearer {cle_api}"})
+    if niveau == "flex" and d.get("service_tier") not in (None, "flex"):
+        niveau = f"rendu_{d.get('service_tier')}"
     us = d.get("usage") or {}
-    u = {"entree": int(us.get("prompt_tokens") or 0),
+    u = {"niveau": niveau, "entree": int(us.get("prompt_tokens") or 0),
          "entree_cache": int((us.get("prompt_tokens_details") or {}).get("cached_tokens") or 0),
          "sortie": int(us.get("completion_tokens") or 0)}
     r = (us.get("completion_tokens_details") or {}).get("reasoning_tokens")
